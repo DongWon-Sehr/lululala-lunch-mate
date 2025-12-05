@@ -78,7 +78,7 @@
         <i class="ph ph-spinner animate-spin text-4xl mb-2 text-orange-500"></i>
         <p class="text-sm text-gray-700 animate-pulse whitespace-nowrap font-bold"
           style="text-shadow: 0 0 4px #FFFFFF, 0 0 4px #FFFFFF, 0 0 4px #FFFFFF;">
-          사무실 근처 맛집 정보와 솔직리뷰 불러오는 중...
+          {{ loadingText }}
         </p>
       </div>
     </div>
@@ -294,7 +294,7 @@
 
                 <div class="p-2">
                   <div v-for="rest in paginatedRestaurants" :key="rest.id" @click="openModal(rest.id)"
-                    @mousemove="updateTooltip($event, rest)" @mouseleave="hideTooltip"
+                    @mousemove="!isMobile && updateTooltip($event, rest)" @mouseleave="hideTooltip"
                     class="group grid grid-cols-12 gap-2 p-3 border-b hover:bg-orange-50 cursor-pointer transition relative rounded-md">
                     <div class="col-span-4 font-medium text-center truncate">{{ rest.name }}</div>
                     <div class="col-span-2 text-sm text-gray-500 text-center">

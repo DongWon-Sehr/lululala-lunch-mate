@@ -21,6 +21,21 @@
       const windowWidth = ref(window.innerWidth);
       const currentUser = ref({ email: '', isAdmin: false });
       const isLoading = ref(true);
+      const loadingText = ref('사무실 근처 맛집 정보와 솔직 리뷰 불러오는 중...');
+      const loadingInterval = ref(null); // [NEW] 타이머 ID 저장
+      const currentPhraseIndex = ref(0); // [NEW] 현재 문구 인덱스
+
+      // [NEW] 로딩 문구 리스트 정의
+      const LOADING_PHRASES = [
+        '사무실 근처 맛집 정보와 솔직 리뷰 불러오는 중...',
+        '오늘은 뭘 먹을지, 행운의 선택지를 찾는 중...',
+        '새로운 꿀팁 리뷰를 수집하고 있습니다. 🍯',
+        '지도 데이터를 동기화하고 있습니다. 🗺️',
+        '찜 목록과 리뷰 기록을 확인 중입니다. ❤️',
+        '리뷰 평점 통계를 계산하고 있습니다. ✨',
+        '데이터를 최적화하고 있습니다. 잠시만 기다려주세요.',
+        '오늘의 메뉴 추천을 준비 중... 🍜',
+      ];
 
       const showUserModal = ref(false);
 
@@ -352,6 +367,16 @@
         });
       });
 
+      const isMobile = computed(() => {
+        // 뷰포트 너비가 768px 미만(Tailwind md breakpoint)이거나 
+        // 터치 이벤트가 지원되는 경우 (모바일 브라우저)
+        if (typeof window !== 'undefined') {
+          const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+          return window.innerWidth < 768 || isTouchDevice;
+        }
+        return false;
+      });
+
       // --- Internal Helpers (Data Sync) ---
       const updateReviewAndRestaurantState = (restId, newReview = null, deletedReviewId = null) => {
         const rest = restaurants.value.find(r => r.id === restId);
@@ -442,8 +467,38 @@
       const onAlertConfirm = () => { if (alertState.value.resolve) alertState.value.resolve(true); alertState.value.visible = false; };
       const onAlertCancel = () => { if (alertState.value.resolve) alertState.value.resolve(false); alertState.value.visible = false; };
 
+      const startLoadingAnimation = (intervalTime = 3000) => { // 3초 간격 기본값 설정
+        if (loadingInterval.value) return;
+
+        const phraseLength = LOADING_PHRASES.length;
+
+        // 최초 문구 설정
+        loadingText.value = LOADING_PHRASES[0];
+
+        loadingInterval.value = setInterval(() => {
+          // 현재 문구와 다른 새로운 무작위 인덱스 선택
+          let newIndex;
+          do {
+            newIndex = Math.floor(Math.random() * phraseLength);
+          } while (newIndex === currentPhraseIndex.value);
+
+          currentPhraseIndex.value = newIndex;
+          loadingText.value = LOADING_PHRASES[newIndex];
+
+        }, intervalTime);
+      };
+
+      // [NEW] 로딩 애니메이션 중지 함수
+      const stopLoadingAnimation = () => {
+        if (loadingInterval.value) {
+          clearInterval(loadingInterval.value);
+          loadingInterval.value = null;
+        }
+      };
+
       const loadData = (callback) => {
         isLoading.value = true;
+        startLoadingAnimation(3000);
 
         // 1. User Data Promise (LOGGING ADDED)
         const userPromise = new Promise(resolve => {
@@ -523,7 +578,9 @@
         });
 
         Promise.all([userPromise, mainDataPromise, reviewDataPromise, likesPromise, menuDataPromise]).then(([u, m, r, l]) => {
+          stopLoadingAnimation();
           isLoading.value = false;
+
           if (m && r) {
             mergeReviewsToRestaurants();
             if (modalOpen.value && selectedRestaurant.value.id) {
@@ -1189,7 +1246,7 @@
         sortDropdownOpen, pageSizeDropdownOpen, toggleSortDropdown, togglePageSizeDropdown,
         toggleMenuSignature, formatPrice, addMenuInput, removeMenuInput, sortedMenus, handleMenuPriceInput, formatNumberWithCommas, calculatedPriceDisplay,
         getFormattedMenuString,
-        myPageTab, myLikedRestaurants, myReviews, formatDateTime
+        myPageTab, myLikedRestaurants, myReviews, formatDateTime, isMobile, loadingText
       };
     }
   }).mount('#app');

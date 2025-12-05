@@ -1,0 +1,907 @@
+<script>
+  const { createApp, ref, computed, onMounted, onUnmounted, watch, nextTick } = Vue;
+
+  createApp({
+    setup() {
+      // Vue 3 Composition API에서는 DOM 참조를 위해 ref를 사용합니다.
+      const kebabButton = ref(null); // [NEW] 케밥 버튼 DOM 요소 참조용
+
+      // --- Constants ---
+      const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1Zs610z6VE5AxeaJblNM8zRDu8fbGgn82F3nR7OId3ok/';
+      const appElement = document.getElementById('app');
+      const BASE_WEBAPP_URL = appElement ? appElement.dataset.appUrl : '';
+
+      // --- State ---
+      const restaurants = ref([]);
+      const allReviews = ref([]);
+      const currentTab = ref('list');
+      const pageSize = ref(30);
+      const currentPage = ref(1);
+
+      const windowWidth = ref(window.innerWidth);
+      const currentUser = ref({ email: '', isAdmin: false });
+      const isLoading = ref(true);
+
+      const showUserModal = ref(false);
+
+      const isFilterOpen = ref(false); // 초기 상태는 접힘
+      const filters = ref({ categories: [], tags: [], minRate: 0 });
+      // [NEW] 필터 상태
+      const showLikeFilter = ref(false);
+      const showMyReviewsFilter = ref(false); // [NEW] 내가 리뷰 남긴 식당 필터 상태
+      const showPendingReviewsFilter = ref(false); // [NEW] 내 리뷰를 기다리는 식당 필터 상태
+      const searchQuery = ref('');
+
+      const sort = ref({ field: 'name', order: 'asc' });
+
+      // [추가] 모바일/데스크탑 드롭다운 제어 상태
+      const sortDropdownOpen = ref(false);
+      const pageSizeDropdownOpen = ref(false);
+
+      // [NEW] User Likes State
+      const userLikes = ref(new Set());
+
+      // [NEW] 성능 개선을 위한 캐싱 상태
+      const myReviewedRestaurantIds = ref(new Set());
+
+      // --- Modal & Restaurant CRUD State ---
+      const modalOpen = ref(false);
+      const modalMode = ref('view');
+      const selectedRestaurant = ref({});
+      const restaurantForm = ref({ id: '', name: '', category: '', tags: [], signature_menu: '', price: '', tagInput: '' });
+      const duplicateList = ref([]);
+
+      const showCategoryDropdown = ref(false);
+      const focusedCategoryIndex = ref(-1);
+
+      // Reviews State
+      const reviews = ref([]);
+      const isSubmitting = ref(false);
+      const highlightReviewId = ref(null);
+      const reviewForm = ref({ rate: 0, user_name: '', comment: '' });
+      const hoverRate = ref(0);
+      const editingReviewId = ref(null);
+      const editForm = ref({ id: '', rate: 0, comment: '' });
+      const isReviewSubmitting = ref(false);
+
+      const alertState = ref({ visible: false, type: 'alert', title: '', message: '', resolve: null });
+
+      // [NEW] 케밥 메뉴 상태
+      const showKebabMenu = ref(false);
+
+      // Tooltip & Wheel State
+      const tooltipVisible = ref(false);
+      const tooltipData = ref({});
+      const tooltipPos = ref({ x: 0, y: 0 });
+      const wheelItems = ref([]);
+      const wheelSearch = ref('');
+      const isSpinning = ref(false);
+      const winner = ref(null);
+      const isWheelListExpanded = ref(true);
+      const isComposing = ref(false);
+
+      let wheelRotation = 0;
+      let wheelVelocity = 0;
+      let animationId = null;
+      let prevIndex = 0;
+      let pinAngle = 0;
+      let pinVelocity = 0;
+      let pinSpring = 0.2;
+      let pinDamping = 0.94;
+      let pinKick = 0.15;
+      let pinDrag = 0.8;
+
+      // --- Computed ---
+      const uniqueCategories = computed(() => {
+        const cats = new Set(restaurants.value.map(r => r.category));
+        return Array.from(cats).sort();
+      });
+      const uniqueTags = computed(() => {
+        const tags = new Set();
+        restaurants.value.forEach(r => r.tags.forEach(t => tags.add(t)));
+        return Array.from(tags).sort();
+      });
+
+      const isNewCategory = computed(() => {
+        const cat = restaurantForm.value.category;
+        return cat && !uniqueCategories.value.includes(cat);
+      });
+
+      const filteredCategoryOptions = computed(() => {
+        const input = (restaurantForm.value.category || '').replace(/\s/g, '').toLowerCase();
+        if (!input) return uniqueCategories.value;
+        return uniqueCategories.value.filter(cat => cat.replace(/\s/g, '').toLowerCase().includes(input));
+      });
+
+      const filteredRestaurants = computed(() => {
+        let result = restaurants.value.filter(r => {
+          if (Number(r.rate) < filters.value.minRate) return false;
+          if (filters.value.categories.length > 0 && !filters.value.categories.includes(r.category)) return false;
+          if (filters.value.tags.length > 0 && !r.tags.some(t => filters.value.tags.includes(t))) return false;
+
+          // [NEW] 좋아요 필터 적용
+          if (showLikeFilter.value) {
+            if (!userLikes.value.has(r.id)) return false;
+          }
+
+          // [NEW] 내가 리뷰 남긴 식당 필터 (캐싱된 Set 사용)
+          if (showMyReviewsFilter.value) {
+            if (!myReviewedRestaurantIds.value.has(r.id)) return false;
+          }
+
+          // [NEW] 내 리뷰를 기다리는 식당 필터 (내가 리뷰 남기지 않은 식당)
+          if (showPendingReviewsFilter.value) {
+            if (myReviewedRestaurantIds.value.has(r.id)) return false;
+          }
+
+          if (searchQuery.value) {
+            const query = searchQuery.value.replace(/\s/g, '').toLowerCase();
+            const targetName = r.name.replace(/\s/g, '').toLowerCase();
+            if (!targetName.includes(query)) return false;
+          }
+
+          return true;
+        });
+
+        if (sort.value.order) {
+          result.sort((a, b) => {
+            let valA = a[sort.value.field];
+            let valB = b[sort.value.field];
+            if (typeof valA === 'string') valA = valA.toLowerCase();
+            if (typeof valB === 'string') valB = valB.toLowerCase();
+
+            if (sort.value.field === 'rate') {
+              valA = Number(a.rate || 0); valB = Number(b.rate || 0);
+            } else if (sort.value.field === 'reviewCount') {
+              valA = Number(a.reviewCount || 0); valB = Number(b.reviewCount || 0);
+            } else if (sort.value.field === 'like_count') { // [수정] 좋아요 정렬 필드를 'like_count'로 사용
+              valA = Number(a.like_count || 0); valB = Number(b.like_count || 0);
+            }
+
+            if (valA < valB) return sort.value.order === 'asc' ? -1 : 1;
+            if (valA > valB) return sort.value.order === 'asc' ? 1 : -1;
+            return 0;
+          });
+        }
+        return result;
+      });
+      const totalPages = computed(() => Math.ceil(filteredRestaurants.value.length / pageSize.value));
+      const paginatedRestaurants = computed(() => {
+        const start = (currentPage.value - 1) * pageSize.value;
+        const end = start + pageSize.value;
+        return filteredRestaurants.value.slice(start, end);
+      });
+      const filteredWheelCandidates = computed(() => {
+        if (!wheelSearch.value) return [];
+        const term = wheelSearch.value.replace(/\s/g, '').toLowerCase();
+        return restaurants.value.filter(r => r.name.replace(/\s/g, '').toLowerCase().includes(term));
+      });
+
+      const userId = computed(() => {
+        if (!currentUser.value.email) return '';
+        const atIndex = currentUser.value.email.indexOf('@');
+        return atIndex > 0 ? currentUser.value.email.substring(0, atIndex) : currentUser.value.email;
+      });
+
+      const userInitial = computed(() => {
+        return (currentUser.value && currentUser.value.email) ? currentUser.value.email.charAt(0).toUpperCase() : '?';
+      });
+
+      const userReviewCount = computed(() => {
+        if (!currentUser.value.email || allReviews.value.length === 0) return 0;
+        return allReviews.value.filter(review => String(review.user_email) === String(currentUser.value.email)).length;
+      });
+
+      const userRankInfo = computed(() => {
+        if (isLoading.value) return null;
+        const count = userReviewCount.value;
+        if (count >= 100) return { name: '블랙 다이아몬드', icon: 'ph-fill ph-diamond', color: 'text-gray-900 bg-gray-100' };
+        if (count >= 70) return { name: '다이아몬드', icon: 'ph-fill ph-diamond', color: 'text-blue-500' };
+        if (count >= 50) return { name: '플래티넘', icon: 'ph-fill ph-crown', color: 'text-sky-400' };
+        if (count >= 30) return { name: '골드', icon: 'ph-fill ph-crown-simple', color: 'text-yellow-500' };
+        if (count >= 10) return { name: '실버', icon: 'ph-fill ph-crown-simple', color: 'text-gray-400' };
+        if (count >= 1) return { name: '브론즈', icon: 'ph-fill ph-crown-simple', color: 'text-amber-700' };
+        return { name: '아이언', icon: 'ph ph-crown-simple', color: 'text-gray-500' };
+      });
+
+      // --- Internal Helpers ---
+      // [NEW] 리뷰 상태 변경 시 로컬 데이터 업데이트 및 UI 동기화
+      const updateReviewAndRestaurantState = (restId, newReview = null, deletedReviewId = null) => {
+        const rest = restaurants.value.find(r => r.id === restId);
+        if (!rest) return;
+
+        // 1. All Reviews 상태 업데이트 (추가/삭제/수정)
+        if (newReview) {
+          // 기존 리뷰를 찾아서 수정하거나, 없으면 추가
+          const index = allReviews.value.findIndex(r => r.id === newReview.id);
+          if (index !== -1) {
+            allReviews.value.splice(index, 1, newReview);
+          } else {
+            allReviews.value.unshift(newReview);
+          }
+        } else if (deletedReviewId) {
+          const index = allReviews.value.findIndex(r => r.id === deletedReviewId);
+          if (index !== -1) {
+            allReviews.value.splice(index, 1);
+          }
+        }
+
+        // 2. 리뷰 카운트 및 평점 재계산
+        const filteredReviews = allReviews.value.filter(r => String(r.restaurant_id) === String(restId));
+        const count = filteredReviews.length;
+        const sum = filteredReviews.reduce((acc, curr) => acc + Number(curr.rate), 0);
+        const avg = count > 0 ? parseFloat((sum / count).toFixed(1)) : 0;
+
+        rest.reviewCount = count;
+        rest.rate = avg;
+        rest.latestReview = filteredReviews[0]?.comment || null;
+        rest.latestReviewRate = filteredReviews[0]?.rate || null;
+
+        // 3. 현재 모달 리뷰 및 필터 캐시 업데이트
+        updateCurrentModalReviews(restId);
+        updateReviewFilterCache(restId, newReview ? newReview.user_email : currentUser.value.email, deletedReviewId);
+      };
+
+      // [NEW] 리뷰 필터 캐시 업데이트 (성능 개선용)
+      const updateReviewFilterCache = (restId, userEmail, deletedReviewId) => {
+        if (userEmail === currentUser.value.email) {
+          if (!deletedReviewId) {
+            // 추가/수정된 경우: ID를 Set에 추가
+            myReviewedRestaurantIds.value.add(restId);
+          } else {
+            // 삭제된 경우: 해당 식당의 다른 리뷰가 남아있는지 확인 후 Set에서 제거
+            const remaining = allReviews.value.some(r => String(r.restaurant_id) === String(restId) && String(r.user_email) === String(userEmail));
+            if (!remaining) {
+              myReviewedRestaurantIds.value.delete(restId);
+            }
+          }
+        }
+      };
+
+      // [NEW] 식당 상태 업데이트 헬퍼
+      const updateRestaurantLocalState = (serverData, isEdit) => {
+        // 서버 응답에서 누락될 수 있는 동적 데이터 (평점, 리뷰수 등)를 현재 상태에서 가져옴
+        const existingRest = isEdit ? restaurants.value.find(r => r.id === serverData.id) : null;
+
+        const newRestaurant = {
+          id: serverData.id,
+          name: restaurantForm.value.name,
+          category: restaurantForm.value.category,
+          tags: restaurantForm.value.tags,
+          signature_menu: restaurantForm.value.signature_menu,
+          price: restaurantForm.value.price,
+          rate: existingRest ? existingRest.rate : 0,
+          like_count: existingRest ? existingRest.like_count : 0,
+          reviewCount: existingRest ? existingRest.reviewCount : 0,
+          // enabled, created_at, updated_at 필드는 서버에서 관리된다고 가정
+        };
+
+        if (isEdit) {
+          // 수정: 기존 배열에서 찾아 교체
+          const index = restaurants.value.findIndex(r => r.id === serverData.id);
+          if (index !== -1) {
+            // 기존의 동적 필드를 유지하면서 교체
+            const currentRest = restaurants.value[index];
+            restaurants.value.splice(index, 1, { ...currentRest, ...newRestaurant });
+            selectedRestaurant.value = restaurants.value[index]; // 모달의 선택된 식당 업데이트
+          }
+        } else {
+          // 추가: 배열 앞에 새 식당 추가
+          restaurants.value.unshift(newRestaurant);
+          selectedRestaurant.value = newRestaurant;
+        }
+      };
+
+      // -------------------------------
+
+      // --- Methods ---
+      const showAlert = (message, title = '알림') => {
+        return new Promise(resolve => { alertState.value = { visible: true, type: 'alert', title, message, resolve }; });
+      };
+      const showConfirm = (message, title = '확인') => {
+        return new Promise(resolve => { alertState.value = { visible: true, type: 'confirm', title, message, resolve }; });
+      };
+      const onAlertConfirm = () => { if (alertState.value.resolve) alertState.value.resolve(true); alertState.value.visible = false; };
+      const onAlertCancel = () => { if (alertState.value.resolve) alertState.value.resolve(false); alertState.value.visible = false; };
+
+      const loadData = (callback) => {
+        isLoading.value = true;
+        const userPromise = new Promise(resolve => {
+          google.script.run.withSuccessHandler(res => {
+            if (res.success) {
+              currentUser.value = res.data.email ? res.data : { email: '', isAdmin: false };
+            } else {
+              currentUser.value = { email: '', isAdmin: false };
+            }
+            resolve();
+          }).apiGetCurrentUser();
+        });
+        const mainDataPromise = new Promise(resolve => {
+          google.script.run.withSuccessHandler(res => {
+            if (res.success) { restaurants.value = res.data; resolve(true); }
+            else { showAlert('식당 리스트 로드 실패: ' + res.message); resolve(false); }
+          }).apiGetRestaurants();
+        });
+        const reviewDataPromise = new Promise(resolve => {
+          // [수정] apiGetAllReviews가 { reviews: [...], reviewCountMap: {...} } 형태를 반환하므로, reviews만 저장
+          google.script.run.withSuccessHandler(res => {
+            if (res.success) {
+              allReviews.value = res.data.reviews;
+
+              // [NEW] 사용자 리뷰 ID 캐싱 로직 (성능 개선)
+              const userEmail = currentUser.value.email;
+              const reviewedIds = new Set();
+              if (userEmail) {
+                res.data.reviews.forEach(review => {
+                  if (String(review.user_email) === String(userEmail)) {
+                    reviewedIds.add(review.restaurant_id);
+                  }
+                });
+              }
+              myReviewedRestaurantIds.value = reviewedIds;
+
+              resolve(true);
+            } else {
+              resolve(false);
+            }
+          }).apiGetAllReviews();
+        });
+        // [NEW] User Likes Fetch
+        const likesPromise = new Promise(resolve => {
+          google.script.run.withSuccessHandler(res => {
+            if (res.success) { userLikes.value = new Set(res.data); }
+            resolve();
+          }).apiGetUserLikes();
+        });
+
+        Promise.all([userPromise, mainDataPromise, reviewDataPromise, likesPromise]).then(([u, m, r, l]) => {
+          isLoading.value = false;
+          if (m && r) {
+            mergeReviewsToRestaurants();
+            if (modalOpen.value && selectedRestaurant.value.id) {
+              const updated = restaurants.value.find(r => r.id === selectedRestaurant.value.id);
+              if (updated && (modalMode.value === 'view' || modalMode.value === 'readonly')) selectedRestaurant.value = updated;
+            }
+            if (callback && typeof callback === 'function') callback();
+          }
+        });
+      };
+
+      const mergeReviewsToRestaurants = () => {
+        if (restaurants.value.length === 0 || allReviews.value.length === 0) {
+          restaurants.value.forEach(rest => {
+            const myReviews = allReviews.value.filter(r => String(r.restaurant_id) === String(rest.id));
+            rest.reviewCount = myReviews.length;
+            if (myReviews.length > 0) {
+              rest.latestReview = myReviews[0].comment;
+              rest.latestReviewRate = myReviews[0].rate;
+            } else {
+              rest.latestReview = null;
+              rest.latestReviewRate = null;
+            }
+          });
+          return;
+        }
+
+        restaurants.value.forEach(rest => {
+          const myReviews = allReviews.value.filter(r => String(r.restaurant_id) === String(rest.id));
+          rest.reviewCount = myReviews.length;
+          if (myReviews.length > 0) {
+            rest.latestReview = myReviews[0].comment;
+            rest.latestReviewRate = myReviews[0].rate;
+          } else {
+            rest.latestReview = null;
+            rest.latestReviewRate = null;
+          }
+        });
+      };
+
+      // [NEW] Like Logic
+      const isLiked = (restId) => userLikes.value.has(restId);
+      const toggleLikeFilter = () => showLikeFilter.value = !showLikeFilter.value;
+      const toggleLike = (rest) => {
+        if (!currentUser.value.email) { showAlert('로그인이 필요합니다.'); return; }
+
+        // Optimistic UI Update
+        const wasLiked = userLikes.value.has(rest.id);
+        if (wasLiked) {
+          userLikes.value.delete(rest.id);
+          rest.like_count = Math.max(0, (rest.like_count || 0) - 1);
+        } else {
+          userLikes.value.add(rest.id);
+          rest.like_count = (rest.like_count || 0) + 1;
+        }
+
+        // Server Sync (부분 업데이트)
+        google.script.run.withSuccessHandler(res => {
+          if (!res.success) {
+            // Revert on failure
+            if (wasLiked) { userLikes.value.add(rest.id); rest.like_count++; }
+            else { userLikes.value.delete(rest.id); rest.like_count--; }
+            showAlert('찜하기 실패', '처리 실패'); // [수정] 실패 메시지 단순화
+          }
+        }).apiToggleLike(rest.id);
+      };
+
+      const addLikedToWheel = () => {
+        const likedRests = restaurants.value.filter(r => userLikes.value.has(r.id));
+        likedRests.forEach(t => addToWheel(t));
+      };
+
+      // Modal Methods
+      const openModal = (rest) => {
+        modalMode.value = 'view';
+        selectedRestaurant.value = rest;
+        reviewForm.value = { rate: 0, user_name: '', comment: '', restaurant_id: rest.id }; // [수정] id 주입
+        modalOpen.value = true;
+        updateCurrentModalReviews(rest.id);
+        showKebabMenu.value = false; // [수정] 모달 열 때 케밥 메뉴는 닫기
+      };
+      const openReadOnlyModal = (rest) => {
+        modalMode.value = 'readonly';
+        selectedRestaurant.value = rest;
+        reviewForm.value = { rate: 0, user_name: '', comment: '', restaurant_id: rest.id }; // [수정] id 주입
+        modalOpen.value = true;
+        updateCurrentModalReviews(rest.id);
+        showKebabMenu.value = false; // [수정] 모달 열 때 케밥 메뉴는 닫기
+      };
+      const openAddRestaurantModal = () => {
+        modalMode.value = 'create';
+        restaurantForm.value = { id: '', name: '', category: '', tags: [], signature_menu: '', price: '', tagInput: '' };
+        duplicateList.value = [];
+        modalOpen.value = true;
+        showKebabMenu.value = false; // [수정] 모달 열 때 케밥 메뉴는 닫기
+      };
+      const startEditRestaurant = () => {
+        modalMode.value = 'edit';
+        const r = selectedRestaurant.value;
+        restaurantForm.value = { id: r.id, name: r.name, category: r.category, tags: [...r.tags], signature_menu: r.signature_menu, price: r.price, tagInput: '' };
+        duplicateList.value = [];
+        showKebabMenu.value = false; // [수정] 케밥 메뉴에서 수정 시작 시 메뉴 닫기
+      };
+      const closeModal = () => {
+        if (isSubmitting.value) return;
+        modalOpen.value = false;
+        cancelEditReview();
+        showCategoryDropdown.value = false;
+        showKebabMenu.value = false; // [수정] 모달 닫을 때 케밥 메뉴도 닫기
+      };
+      const handleCancel = () => {
+        if (isSubmitting.value) return;
+        if (modalMode.value === 'edit') {
+          modalMode.value = 'view';
+          duplicateList.value = [];
+        } else {
+          closeModal();
+        }
+      };
+      const openUserModal = () => { showUserModal.value = true; };
+      const closeUserModal = () => { showUserModal.value = false; };
+
+      const formatReviewComment = (comment) => {
+        if (!comment) return '';
+        let formatted = comment;
+        const urlRegex = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
+        formatted = formatted.replace(urlRegex, url => '<a href="' + url + '" target="_blank" class="text-blue-500 hover:text-blue-700 hover:underline">' + url + '</a>');
+        return formatted.replace(/\n/g, '<br>');
+      };
+
+      const processTagInput = (e) => {
+        if (isComposing.value || !restaurantForm.value.tagInput.trim()) return;
+        if (e.key === 'Enter' || e.key === ' ' || e.key === ',') {
+          e.preventDefault();
+          const val = restaurantForm.value.tagInput.trim();
+          if (val && !restaurantForm.value.tags.includes(val)) restaurantForm.value.tags.push(val);
+          restaurantForm.value.tagInput = '';
+        }
+      };
+      const handleCompositionStart = () => { isComposing.value = true; };
+      const handleCompositionEnd = () => { isComposing.value = false; };
+      const removeTag = (index) => { restaurantForm.value.tags.splice(index, 1); };
+      const openCategoryDropdown = () => { showCategoryDropdown.value = true; focusedCategoryIndex.value = -1; };
+      const closeCategoryDropdown = () => { setTimeout(() => { showCategoryDropdown.value = false; focusedCategoryIndex.value = -1; }, 200); };
+      const selectCategory = (cat) => { restaurantForm.value.category = cat; showCategoryDropdown.value = false; };
+      const onCategoryKeydown = (e) => { if (!showCategoryDropdown.value) { if (e.key === 'ArrowDown') openCategoryDropdown(); return; } const options = filteredCategoryOptions.value; if (e.key === 'ArrowDown') { e.preventDefault(); if (focusedCategoryIndex.value < options.length - 1) focusedCategoryIndex.value++; } else if (e.key === 'ArrowUp') { e.preventDefault(); if (focusedCategoryIndex.value > 0) focusedCategoryIndex.value--; } else if (e.key === 'Enter') { e.preventDefault(); if (focusedCategoryIndex.value >= 0 && focusedCategoryIndex.value < options.length) { selectCategory(options[focusedCategoryIndex.value]); } else if (options.length === 1) { selectCategory(options[0]); } else { showCategoryDropdown.value = false; } } else if (e.key === 'Escape') { showCategoryDropdown.value = false; } };
+
+      watch(() => restaurantForm.value.name, (newName) => {
+        if (!newName || (modalMode.value !== 'create' && modalMode.value !== 'edit')) { duplicateList.value = []; return; }
+        const normalizedInput = newName.replace(/\s/g, '').toLowerCase();
+        const duplicates = restaurants.value.filter(r => {
+          if (modalMode.value === 'edit' && r.id === restaurantForm.value.id) return false;
+          const normalizedTarget = r.name.replace(/\s/g, '').toLowerCase();
+          return normalizedTarget.includes(normalizedInput);
+        });
+        duplicateList.value = duplicates;
+      });
+
+      const saveRestaurant = async () => {
+        if (!restaurantForm.value.name) { showAlert('상호명을 입력해주세요.'); return; }
+        if (!restaurantForm.value.category) { showAlert('카테고리를 입력하거나 선택해주세요.'); return; }
+        if (duplicateList.value.length > 0) {
+          const confirmSave = await showConfirm(`유사한 상호명이 ${duplicateList.value.length}개 존재합니다.\n그래도 저장하시겠습니까?`);
+          if (!confirmSave) return;
+        }
+
+        isSubmitting.value = true;
+        const isEdit = modalMode.value === 'edit';
+        const apiFunc = !isEdit ? 'apiAddRestaurant' : 'apiUpdateRestaurant';
+        const currentId = restaurantForm.value.id;
+        const currentName = restaurantForm.value.name;
+
+        // 서버 요청
+        google.script.run.withSuccessHandler(res => {
+          if (res.success && res.data) {
+
+            // [NEW] 로컬 상태 업데이트
+            updateRestaurantLocalState(res.data, isEdit);
+
+            isSubmitting.value = false;
+
+            // [수정] Alert 없이 모달 상태 변경만
+            if (isEdit) {
+              modalMode.value = 'view';
+            } else {
+              modalMode.value = 'view';
+              // 새 식당에 대한 리뷰 목록 로드 및 초기화
+              reviewForm.value = { rate: 0, user_name: '', comment: '', restaurant_id: selectedRestaurant.value.id };
+              updateCurrentModalReviews(selectedRestaurant.value.id);
+            }
+          } else {
+            isSubmitting.value = false;
+            showAlert('식당 정보 저장에 실패했습니다.', '처리 실패'); // [수정] 실패 메시지 단순화
+          }
+        })[apiFunc](restaurantForm.value);
+      };
+
+      const deleteRestaurant = async () => {
+        const confirmed = await showConfirm('정말 이 식당 정보를 삭제하시겠습니까?');
+        if (!confirmed) return;
+
+        isSubmitting.value = true;
+        const idToDelete = modalMode.value === 'edit' ? restaurantForm.value.id : selectedRestaurant.value.id;
+
+        // 서버 요청
+        google.script.run.withSuccessHandler(res => {
+          if (res.success) {
+
+            // [NEW] 로컬 상태 업데이트 (삭제)
+            const index = restaurants.value.findIndex(r => r.id === idToDelete);
+            if (index !== -1) {
+              restaurants.value.splice(index, 1);
+            }
+
+            isSubmitting.value = false;
+            closeModal(); // [수정] Alert 없이 모달 닫기
+          } else {
+            isSubmitting.value = false;
+            showAlert('식당 삭제에 실패했습니다.', '처리 실패'); // [수정] 실패 메시지 단순화
+          }
+        }).apiDeleteRestaurant(idToDelete);
+      };
+
+      const updateCurrentModalReviews = (restId) => {
+        try {
+          let filtered = allReviews.value.filter(r => String(r.restaurant_id) === String(restId));
+          filtered.sort((a, b) => {
+            const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+            if (timeA !== timeB) return timeB - timeA;
+            const idA = String(a.id || ''), idB = String(b.id || '');
+            return idB.localeCompare(idA, undefined, { numeric: true });
+          });
+          reviews.value = filtered;
+        } catch (e) {
+          reviews.value = allReviews.value.filter(r => String(r.restaurant_id) === String(restId));
+        }
+      };
+
+      const submitReview = async () => {
+        if (!reviewForm.value.rate || reviewForm.value.rate < 1) { showAlert('별점을 선택해주세요.'); return; }
+        if (!reviewForm.value.user_name) { showAlert('작성자를 입력해주세요.'); return; }
+        if (!reviewForm.value.comment) { showAlert('내용을 입력해주세요.'); return; }
+        isSubmitting.value = true;
+
+        // 서버 요청
+        google.script.run.withSuccessHandler(res => {
+          if (res.success && res.data) {
+            const newReviewData = {
+              id: res.data.id, // 서버에서 반환된 ID 사용 가정
+              restaurant_id: selectedRestaurant.value.id,
+              rate: reviewForm.value.rate,
+              comment: reviewForm.value.comment,
+              user_name: reviewForm.value.user_name,
+              user_email: currentUser.value.email,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
+
+            // [NEW] 로컬 상태 업데이트 (loadData 대신)
+            updateReviewAndRestaurantState(selectedRestaurant.value.id, newReviewData);
+
+            // UI 초기화
+            reviewForm.value = { rate: 0, user_name: '', comment: '', restaurant_id: selectedRestaurant.value.id };
+            highlightReviewId.value = newReviewData.id;
+            setTimeout(() => { highlightReviewId.value = null; }, 2000);
+            isSubmitting.value = false;
+
+            // [수정] Alert 없이 모달 상태는 이미 updateCurrentModalReviews로 반영됨.
+
+          } else {
+            isSubmitting.value = false;
+            showAlert('리뷰 등록에 실패했습니다.', '처리 실패'); // [수정] 실패 메시지 단순화
+          }
+        }).apiAddReview(reviewForm.value);
+      };
+
+      const deleteReview = async (reviewId) => {
+        const confirmed = await showConfirm('정말 이 리뷰를 삭제하시겠습니까?');
+        if (!confirmed) return;
+        isSubmitting.value = true;
+
+        // 서버 요청
+        google.script.run.withSuccessHandler(res => {
+          if (res.success) {
+            // [NEW] 로컬 상태 업데이트 (loadData 대신)
+            updateReviewAndRestaurantState(selectedRestaurant.value.id, null, reviewId);
+
+            isSubmitting.value = false;
+            // [수정] Alert 없이 모달 상태는 이미 updateCurrentModalReviews로 반영됨.
+          } else {
+            isSubmitting.value = false;
+            showAlert('리뷰 삭제에 실패했습니다.', '처리 실패'); // [수정] 실패 메시지 단순화
+          }
+        }).apiDeleteReview(reviewId);
+      };
+
+      const startEditReview = (review) => { editingReviewId.value = review.id; editForm.value = { id: review.id, rate: review.rate, comment: review.comment }; };
+      const cancelEditReview = () => { editingReviewId.value = null; editForm.value = { id: '', rate: 0, comment: '' }; };
+      const saveEditReview = async () => {
+        if (!editForm.value.comment) { showAlert('코멘트를 입력해주세요.'); return; }
+        isReviewSubmitting.value = true;
+
+        // 서버 요청
+        google.script.run.withSuccessHandler(res => {
+          if (res.success) {
+            const editedReview = {
+              id: editForm.value.id,
+              restaurant_id: selectedRestaurant.value.id,
+              rate: editForm.value.rate,
+              comment: editForm.value.comment,
+              user_name: reviews.value.find(r => r.id === editForm.value.id)?.user_name || '',
+              user_email: currentUser.value.email,
+              created_at: reviews.value.find(r => r.id === editForm.value.id)?.created_at || new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
+
+            // [NEW] 로컬 상태 업데이트 (loadData 대신)
+            updateReviewAndRestaurantState(selectedRestaurant.value.id, editedReview);
+
+            cancelEditReview();
+            highlightReviewId.value = editedReview.id;
+            setTimeout(() => { highlightReviewId.value = null; }, 2000);
+            isReviewSubmitting.value = false;
+
+            // [수정] Alert 없이 모달 상태는 이미 updateCurrentModalReviews로 반영됨.
+
+          } else {
+            isReviewSubmitting.value = false;
+            showAlert('리뷰 수정에 실패했습니다.', '처리 실패'); // [수정] 실패 메시지 단순화
+          }
+        }).apiUpdateReview(editForm.value);
+      };
+
+      const canManageReview = (review) => { if (currentUser.value.isAdmin) return true; if (currentUser.value.email && String(review.user_email) === String(currentUser.value.email)) return true; return false; };
+
+      const updateTooltip = (e, rest) => {
+        if (windowWidth.value < 768) return;
+        let x = e.clientX + 10; let y = e.clientY + 10;
+        if (x + 250 > window.innerWidth) x = e.clientX - 250;
+        if (y + 150 > window.innerHeight) y = e.clientY - 150;
+        tooltipData.value = rest; tooltipVisible.value = true; tooltipPos.value = { x: x, y: y };
+      };
+      const hideTooltip = () => tooltipVisible.value = false;
+      const toggleFilter = () => isFilterOpen.value = !isFilterOpen.value;
+      const toggleFilterItem = (type, value) => { const idx = filters.value[type].indexOf(value); if (idx === -1) filters.value[type].push(value); else filters.value[type].splice(idx, 1); currentPage.value = 1; };
+
+      const setSort = (field) => {
+        if (sort.value.field === field) {
+          if (sort.value.order === 'desc') sort.value.order = 'asc';
+          else if (sort.value.order === 'asc') sort.value.order = null;
+          else sort.value.order = 'desc';
+        } else {
+          sort.value.field = field; sort.value.order = 'desc';
+        }
+      };
+      const setSortOrder = () => {
+        if (!sort.value.field || sort.value.order === null) { sort.value.field = 'name'; sort.value.order = 'desc'; }
+        else if (sort.value.order === 'desc') { sort.value.order = 'asc'; }
+        else { sort.value.order = 'desc'; }
+      };
+      const getSortIcon = (field) => {
+        if (sort.value.field !== field || !sort.value.order) return 'ph ph-arrows-down-up text-gray-400';
+        return sort.value.order === 'desc' ? 'ph ph-caret-down' : 'ph ph-caret-up';
+      };
+
+      // [추가] 드롭다운 토글 메서드
+      const toggleSortDropdown = () => {
+        sortDropdownOpen.value = !sortDropdownOpen.value;
+      };
+      const togglePageSizeDropdown = () => {
+        pageSizeDropdownOpen.value = !pageSizeDropdownOpen.value;
+      };
+
+      const addCategoryToWheel = (val) => {
+        let toAdd = [];
+        if (val === '밖밥파') {
+          toAdd = restaurants.value.filter(rest => {
+            const isDelivery = (rest.category && rest.category === '배달') || (rest.tags && rest.tags.some(t => t.includes('배달')));
+            return !isDelivery;
+          });
+        } else {
+          toAdd = restaurants.value.filter(r => r.category === val || (r.tags && r.tags.includes(val)));
+        }
+        toAdd.forEach(t => addToWheel(t));
+      };
+      const addAllToWheel = () => restaurants.value.forEach(t => addToWheel(t));
+      const addToWheel = (item) => { if (!wheelItems.value.find(w => w.id === item.id)) { wheelItems.value.push(item); wheelSearch.value = ''; drawWheel(); } };
+      const removeFromWheel = (index) => { wheelItems.value.splice(index, 1); drawWheel(); };
+      const clearWheel = () => { wheelItems.value = []; drawWheel(); };
+      const resetWheel = () => { winner.value = null; wheelRotation = 0; pinAngle = 0; drawWheel(); };
+
+      const drawWheel = () => {
+        const canvas = document.getElementById('wheelCanvas'); if (!canvas) return; const ctx = canvas.getContext('2d');
+        const width = canvas.width, height = canvas.height; const verticalOffset = 20; const radius = width / 2 - 30; const centerX = width / 2, centerY = height / 2 + verticalOffset;
+        ctx.clearRect(0, 0, width, height);
+        if (wheelItems.value.length === 0) { ctx.fillStyle = '#f3f4f6'; ctx.beginPath(); ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI); ctx.fill(); ctx.fillStyle = '#9ca3af'; ctx.font = '20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('후보 리스트를 추가하세요', centerX, centerY); return; }
+        const step = (2 * Math.PI) / wheelItems.value.length; const colors = ['#fca5a5', '#fdba74', '#fcd34d', '#86efac', '#93c5fd', '#c4b5fd', '#f9a8d4'];
+        ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(wheelRotation);
+        for (let i = 0; i < wheelItems.value.length; i++) {
+          const angle = i * step;
+          ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, radius, angle, angle + step); ctx.fillStyle = colors[i % colors.length]; ctx.fill(); ctx.stroke();
+          ctx.save(); ctx.rotate(angle); ctx.beginPath(); ctx.arc(radius, 0, 3, 0, 2 * Math.PI); ctx.fillStyle = 'white'; ctx.fill(); ctx.strokeStyle = '#d1d5db'; ctx.stroke(); ctx.restore();
+          ctx.save(); ctx.rotate(angle + step / 2); ctx.textAlign = 'right'; ctx.fillStyle = '#374151'; ctx.font = 'bold 14px sans-serif'; ctx.fillText(wheelItems.value[i].name, radius - 20, 5); ctx.restore();
+        }
+        ctx.restore();
+        ctx.beginPath(); ctx.arc(centerX, centerY, 5, 0, 2 * Math.PI); ctx.fillStyle = '#6b7280'; ctx.fill();
+        ctx.save(); ctx.translate(centerX, 5 + verticalOffset); ctx.rotate(pinAngle); ctx.beginPath(); ctx.arc(0, 0, 8, Math.PI, 0); ctx.lineTo(0, 30); ctx.lineTo(-8, 0); ctx.closePath(); ctx.fillStyle = '#dc2626'; ctx.fill(); ctx.strokeStyle = '#991b1b'; ctx.lineWidth = 1; ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 3, 0, 2 * Math.PI); ctx.fillStyle = '#fca5a5'; ctx.fill(); ctx.restore();
+      };
+
+      const spinWheel = () => {
+        if (isSpinning.value || wheelItems.value.length === 0) return;
+        isSpinning.value = true; winner.value = null; wheelVelocity = 0.4 + Math.random() * 0.1;
+        const segAngle = (2 * Math.PI) / wheelItems.value.length; const pointerAngle = 1.5 * Math.PI; prevIndex = 0;
+        const animate = () => {
+          wheelVelocity *= 0.99; wheelRotation += wheelVelocity;
+          const normalizedRot = wheelRotation % (2 * Math.PI);
+          const currentRelativeAngle = (pointerAngle - normalizedRot + (2 * Math.PI)) % (2 * Math.PI);
+          const currentIndex = Math.floor(currentRelativeAngle / segAngle);
+          if (currentIndex !== prevIndex) { pinVelocity -= pinKick; }
+          prevIndex = currentIndex;
+          pinVelocity += (0 - pinAngle) * pinSpring; pinVelocity *= pinDamping; pinAngle += pinVelocity;
+          pinAngle = Math.max(-Math.PI / 18, Math.min(Math.PI / 3, pinAngle));
+          drawWheel();
+          if (wheelVelocity < 0.002) { isSpinning.value = false; cancelAnimationFrame(animationId); calculateWinner(); pinAngle = 0; drawWheel(); } else { animationId = requestAnimationFrame(animate); }
+        };
+        animate();
+      };
+      const calculateWinner = () => { const normRot = wheelRotation % (2 * Math.PI); const segAngle = (2 * Math.PI) / wheelItems.value.length; let ptrAngle = (1.5 * Math.PI) - normRot; if (ptrAngle < 0) ptrAngle += 2 * Math.PI; winner.value = wheelItems.value[Math.floor(ptrAngle / segAngle) % wheelItems.value.length]; };
+
+      const formatDate = (dateStr) => { if (!dateStr) return ''; const d = new Date(dateStr); return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`; };
+      const updateWidth = () => windowWidth.value = window.innerWidth;
+
+      // [NEW] 케밥 메뉴 토글 메서드
+      const toggleKebabMenu = () => {
+        showKebabMenu.value = !showKebabMenu.value;
+        // 메뉴가 닫힐 때 버튼에서 blur 처리 불필요, 외부 클릭 감지 로직에 맡김.
+      };
+
+      // --- Watchers ---
+      // [NEW] 로딩 완료 시 필터 자동 펼침 로직 (데스크탑 768px 이상에서만)
+      watch(isLoading, (newVal, oldVal) => {
+        // 로딩이 완료되었을 때 (true -> false)
+        if (oldVal === true && newVal === false) {
+          nextTick(() => {
+            // [핵심] 데스크탑 (768px 이상)일 때만 펼침
+            if (windowWidth.value >= 768) {
+              isFilterOpen.value = true;
+            }
+          });
+        }
+      });
+
+      onMounted(() => {
+        loadData();
+        window.addEventListener('resize', updateWidth);
+        watch(currentTab, (newVal) => { if (newVal === 'wheel') nextTick(() => drawWheel()); });
+
+        // [수정] ESC 키 핸들러: 케밥 메뉴를 가장 먼저 닫도록 처리
+        window.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') {
+            if (isSubmitting.value) return;
+
+            // 1. 케밥 메뉴가 열려 있으면 닫기
+            if (showKebabMenu.value) {
+              showKebabMenu.value = false;
+              return;
+            }
+
+            // [NEW] 드롭다운이 열려 있으면 닫기
+            if (sortDropdownOpen.value) { sortDropdownOpen.value = false; return; }
+            if (pageSizeDropdownOpen.value) { pageSizeDropdownOpen.value = false; return; }
+
+            // 2. Alert/Confirm check
+            if (alertState.value.visible) onAlertCancel();
+
+            // 3. User Modal check
+            else if (showUserModal.value) closeUserModal();
+
+            // 4. Main Modal check
+            else if (modalOpen.value) {
+              if (modalMode.value === 'view' || modalMode.value === 'readonly') closeModal();
+            }
+          }
+        });
+        watch(modalOpen, (val) => {
+          document.body.style.overflow = val ? 'hidden' : 'auto';
+          showKebabMenu.value = false; // 모달이 닫히면 케밥 메뉴도 반드시 닫음
+        });
+
+        // [NEW] 외부 클릭 감지 리스너 (케밥 메뉴 및 드롭다운 닫기)
+        document.addEventListener('click', (e) => {
+          // 1. 케밥 메뉴 처리
+          const button = kebabButton.value;
+          if (showKebabMenu.value && button && !button.contains(e.target)) {
+            let target = e.target;
+            let isKebabMenuClicked = false;
+            while (target) {
+              if (target.classList && target.classList.contains('kebab-dropdown')) {
+                isKebabMenuClicked = true;
+                break;
+              }
+              target = target.parentNode;
+            }
+            if (!isKebabMenuClicked) {
+              showKebabMenu.value = false;
+            }
+          }
+
+          // 2. 소팅 드롭다운 닫기
+          if (sortDropdownOpen.value) {
+            if (!e.target.closest('.js-sort-dropdown')) {
+              sortDropdownOpen.value = false;
+            }
+          }
+
+          // 3. 페이지사이즈 드롭다운 닫기
+          if (pageSizeDropdownOpen.value) {
+            if (!e.target.closest('.js-pagesize-dropdown')) {
+              pageSizeDropdownOpen.value = false;
+            }
+          }
+        });
+      });
+
+      return {
+        restaurants, currentTab, pageSize, currentPage, isLoading, currentUser, userInitial, userId, userReviewCount, userRankInfo,
+        isFilterOpen, filters, toggleFilter, toggleFilterItem, uniqueCategories, uniqueTags,
+        filteredRestaurants, paginatedRestaurants, totalPages, sort, setSort, setSortOrder, getSortIcon,
+        modalOpen, modalMode, selectedRestaurant, restaurantForm, duplicateList, isNewCategory, filteredCategoryOptions, showCategoryDropdown, focusedCategoryIndex,
+        openModal, openReadOnlyModal, openAddRestaurantModal, startEditRestaurant, closeModal, processTagInput, handleCompositionStart, handleCompositionEnd, isComposing, removeTag, saveRestaurant, deleteRestaurant,
+        openCategoryDropdown, closeCategoryDropdown, selectCategory, onCategoryKeydown,
+        reviews, reviewForm, isSubmitting, submitReview, deleteReview, canManageReview, startEditReview, cancelEditReview, saveEditReview, editingReviewId, editForm, isReviewSubmitting, hoverRate, formatDate,
+        wheelItems, wheelSearch, addToWheel, removeFromWheel, spinWheel, isSpinning, winner, addCategoryToWheel, addAllToWheel, clearWheel, filteredWheelCandidates, resetWheel, isWheelListExpanded,
+        tooltipVisible, tooltipData, tooltipPos, updateTooltip, hideTooltip, alertState, onAlertConfirm, onAlertCancel, windowWidth,
+        showUserModal, openUserModal, closeUserModal, searchQuery,
+        GOOGLE_SHEET_URL, BASE_WEBAPP_URL, handleCancel, formatReviewComment,
+        userLikes, isLiked, toggleLike, showLikeFilter, toggleLikeFilter,
+        showMyReviewsFilter, showPendingReviewsFilter, // [NEW] 필터 상태 노출
+        addLikedToWheel,
+        myReviewedRestaurantIds, // [NEW] 캐시된 리뷰 ID
+        showKebabMenu, // [NEW] 케밥 메뉴 상태 노출
+        toggleKebabMenu, // [NEW] 케밥 메뉴 토글 메서드 노출
+        kebabButton, // [NEW] 케밥 버튼 ref 노출
+        sortDropdownOpen, pageSizeDropdownOpen, toggleSortDropdown, togglePageSizeDropdown
+      };
+    }
+  }).mount('#app');
+</script>

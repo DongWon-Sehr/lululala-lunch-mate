@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <base target="_top">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <?!= include('stylesheet'); ?>
+</head>
+
+<body class="bg-gray-50 text-gray-800 min-h-screen overflow-y-auto">
+  <div id="app" class="min-h-screen flex flex-col relative" data-app-url="<?!= BASE_WEBAPP_URL ?>">
+    <?!= include('LayoutHeader'); ?>
+
+    <button @click="openAddRestaurantModal" v-show="currentTab === 'list' && !isLoading"
+      class="fixed bottom-6 right-6 bg-orange-500 bg-opacity-[0.65] hover:bg-opacity-100 text-white w-12 h-12 md:w-14 md:h-14 rounded-full shadow-lg z-30 transition-all transform hover:scale-110 flex items-center justify-center group"
+      title="식당 추가">
+      <i class="ph-bold ph-plus text-xl md:text-2xl group-hover:rotate-90 transition-transform"></i>
+    </button>
+
+    <main class="flex-1 relative">
+      <?!= include('ViewList'); ?>
+      <?!= include('ViewWheel'); ?>
+    </main>
+
+    <div v-if="tooltipVisible" :style="{ left: tooltipPos.x + 10 + 'px', top: tooltipPos.y + 10 + 'px' }"
+      class="fixed z-[9999] p-3 text-xs bg-gray-900 text-white rounded-lg shadow-xl pointer-events-none whitespace-nowrap custom-tooltip-box animate-fade-in-tooltip">
+      <div class="flex items-center justify-between font-bold text-sm mb-1 pb-1 border-b border-gray-700">
+        <span class="truncate max-w-[150px] mr-2">{{ tooltipData.name }}</span>
+        <div class="flex items-center gap-2">
+          <span class="flex items-center text-orange-400 shrink-0">
+            <i class="ph-fill ph-star mr-0.5 text-xs"></i>
+            {{ tooltipData.rate || '-' }}
+          </span>
+          <div class="flex items-center gap-1 text-gray-400">
+            <i class="ph ph-chat-text"></i>
+            <span>{{ tooltipData.reviewCount || 0 }}</span>
+          </div>
+          <div class="flex items-center gap-1 text-red-400">
+            <i :class="[isLiked(tooltipData.id) ? 'ph-fill ph-heart' : 'ph ph-heart text-gray-500']"></i>
+            <span>{{ tooltipData.like_count || 0 }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="text-gray-300 mb-1"><span class="text-gray-500 mr-2">메뉴:</span>{{ tooltipData.signature_menu ||
+        '정보없음'
+        }}</div>
+      <div class="text-gray-300 mb-2"><span class="text-gray-500 mr-2">가격:</span>{{ tooltipData.price || '-' }}
+      </div>
+      <div class="flex flex-wrap gap-1 border-t border-gray-700 pt-1">
+        <span class="bg-orange-600 text-white px-1 py-0.5 rounded-sm shrink-0">{{ tooltipData.category || 'N/A'
+          }}</span>
+        <span v-for="tag in tooltipData.tags.slice(0, 3)" :key="tag"
+          class="bg-gray-700 text-gray-300 px-1 py-0.5 rounded-sm">#{{ tag }}</span>
+      </div>
+    </div>
+
+    <footer class="p-4 bg-gray-200 text-gray-600 text-xs font-bold text-center border-t">
+      Powered By 🐟
+    </footer>
+
+    <?!= include('ModalRestaurant'); ?>
+    <?!= include('ModalAlert'); ?>
+  </div>
+</body>
+<?!= include('javascript'); ?>
+
+</html>

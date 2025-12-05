@@ -1,0 +1,388 @@
+<div v-show="currentTab === 'list'" class="h-full flex flex-col p-4 max-w-7xl mx-auto w-full">
+
+  <!-- 1. 검색 및 필터 섹션 -->
+  <div class="bg-white p-4 rounded-lg shadow mb-4">
+    <div class="flex justify-between items-center cursor-pointer" @click="toggleFilter">
+      <h3 class="font-bold text-gray-700">검색 및 필터</h3>
+      <i v-show="!isLoading" :class="['ph ph-caret-down transition-transform', isFilterOpen ? 'rotate-180' : '']"></i>
+    </div>
+
+    <!-- 필터 내용 -->
+    <div v-show="!isLoading">
+      <div v-if="isFilterOpen" class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-in">
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-3">카테고리</label>
+          <div class="flex flex-wrap gap-2">
+            <button v-for="cat in uniqueCategories" :key="cat" @click="toggleFilterItem('categories', cat)" :class="['px-2 py-1 text-xs rounded border', filters.categories.includes(cat) ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200']">{{ cat }}</button>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-3">태그</label>
+          <div class="flex flex-wrap gap-2">
+            <button v-for="tag in uniqueTags" :key="tag" @click="toggleFilterItem('tags', tag)" :class="['px-2 py-1 text-xs rounded border', filters.tags.includes(tag) ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200']">#{{ tag }}</button>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">내 취향 & 활동</label>
+          <div class="flex flex-wrap gap-2 mb-6">
+            <button @click="toggleLikeFilter"
+                  :class="['flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition border', showLikeFilter ? 'bg-red-50 text-red-500 border-red-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50']">
+                  <i :class="[showLikeFilter ? 'ph-fill ph-heart' : 'ph ph-heart']"></i>
+                  내가 찜한 매장
+            </button>
+            <button @click="showMyReviewsFilter = !showMyReviewsFilter; if(showMyReviewsFilter) showPendingReviewsFilter = false"
+                  :class="['flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition border', showMyReviewsFilter ? 'bg-blue-50 text-blue-500 border-blue-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50']">
+                  <i :class="[showMyReviewsFilter ? 'ph-fill ph-chat-text' : 'ph ph-chat-text']"></i>
+                  내가 리뷰 남긴 식당
+            </button>
+            <button @click="showPendingReviewsFilter = !showPendingReviewsFilter; if(showPendingReviewsFilter) showMyReviewsFilter = false"
+                  :class="['flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition border', showPendingReviewsFilter ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50']">
+                  <i :class="[showPendingReviewsFilter ? 'ph-fill ph-pencil-simple' : 'ph ph-pencil-simple']"></i>
+                  내 리뷰를 기다리는 식당
+            </button>
+          </div>
+
+          <label class="block text-xs font-medium text-gray-500 mb-1">최소 별점 ({{ filters.minRate }}점)</label>
+          <input type="range" min="0" max="5" step="0.5" v-model.number="filters.minRate" class="w-full accent-orange-500"/>
+        </div>
+      </div>
+
+      <div v-if="isFilterOpen" class="mt-4 pt-3 border-t">
+        <div class="relative">
+          <i class="ph ph-magnifying-glass absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+          <input type="text" :value="searchQuery" @input="searchQuery = $event.target.value" placeholder="상호명 검색..." class="w-full border rounded pl-10 pr-3 py-2 text-sm focus:outline-none focus:border-orange-500"/>
+        </div>
+        <div class="flex justify-end text-xs text-gray-500 mt-2">
+          <span>총 <strong class="text-orange-600">{{ filteredRestaurants.length }}</strong>개의 매장이 검색되었습니다.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. 매장 리스트/결과 섹션 -->
+  <div class="bg-white rounded-lg shadow flex flex-col relative min-h-[150px] md:min-h-[300px]">
+
+    <!-- 로딩 스피너 -->
+    <div v-if="isLoading" class="absolute z-50 w-full h-full left-0 top-0">
+      <div class="absolute left-1/2 transform -translate-x-1/2 flex flex-col items-center"
+        :style="{ top: windowWidth < 768 ? '40%' : '60%' }">
+        <i class="ph ph-spinner animate-spin text-4xl mb-2 text-orange-500"></i>
+        <p class="text-sm text-gray-700 animate-pulse whitespace-nowrap font-bold"
+          style="text-shadow: 0 0 4px #FFFFFF, 0 0 4px #FFFFFF, 0 0 4px #FFFFFF;">
+          사무실 근처 맛집 정보와 솔직리뷰 불러오는 중...
+        </p>
+      </div>
+    </div>
+
+    <!-- 2-A. 로딩 중일 때 스켈레톤 -->
+    <div v-if="isLoading" class="p-4">
+      <div class="p-3 border-b bg-gray-50 rounded-t-lg mb-4 animate-pulse">
+        <div class="hidden md:flex justify-between items-center h-6">
+          <div class="w-24"></div>
+          <div class="h-4 bg-gray-200 rounded w-20"></div>
+          <div class="h-4 bg-gray-200 rounded w-24"></div>
+        </div>
+        <div class="md:hidden flex flex-col gap-2">
+          <div class="flex justify-between items-center h-4">
+            <div class="h-4 bg-gray-200 rounded w-20"></div>
+            <div class="h-4 bg-gray-200 rounded w-16"></div>
+          </div>
+          <div class="flex justify-center h-6 gap-2">
+            <div class="h-4 bg-gray-200 rounded w-8"></div>
+            <div class="h-4 bg-gray-200 rounded w-16"></div>
+            <div class="h-4 bg-gray-200 rounded w-8"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 데스크톱 스켈레톤 (그리드) -->
+      <div class="hidden md:block">
+        <div
+          class="grid grid-cols-12 gap-2 p-3 bg-gray-100 font-bold text-sm text-gray-600 border-b relative z-10 text-center">
+          <div class="col-span-3">상호명</div>
+          <div class="col-span-2">카테고리</div>
+          <div class="col-span-1">평점</div>
+          <div class="col-span-1">리뷰수</div>
+
+          <div class="col-span-1 flex justify-center items-center">
+            <i class="ph-fill ph-heart text-gray-400"></i>
+          </div>
+
+          <div class="col-span-2">대표메뉴</div>
+          <div class="col-span-2">가격대</div>
+        </div>
+        <div v-for="n in 5" :key="'dt-skel-' + n" class="grid grid-cols-12 gap-2 p-3 border-b animate-pulse">
+          <div class="col-span-3">
+            <div class="h-4 bg-gray-300 rounded w-3/4 mx-auto"></div>
+          </div>
+          <div class="col-span-2">
+            <div class="h-4 bg-gray-300 rounded w-2/3 mx-auto"></div>
+          </div>
+          <div class="col-span-1">
+            <div class="h-4 bg-gray-300 rounded w-1/2 mx-auto"></div>
+          </div>
+          <div class="col-span-1">
+            <div class="h-4 bg-gray-300 rounded w-1/2 mx-auto"></div>
+          </div>
+          <div class="col-span-1">
+            <div class="h-4 bg-gray-300 rounded w-1/2 mx-auto"></div>
+          </div>
+          <div class="col-span-2">
+            <div class="h-4 bg-gray-300 rounded w-full"></div>
+          </div>
+          <div class="col-span-2">
+            <div class="h-4 bg-gray-300 rounded w-2/3 mx-auto"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 모바일 스켈레톤 (카드뷰) -->
+      <div class="md:hidden">
+        <div v-for="n in 2" :key="'mb-skel-' + n"
+          class="bg-white p-4 rounded-lg border border-gray-100 shadow-sm mb-4 animate-pulse flex flex-col gap-2">
+          <div class="flex justify-between items-start">
+            <div class="h-6 bg-gray-300 rounded w-4/6"></div>
+            <div class="h-6 w-6 bg-gray-300 rounded-full"></div>
+          </div>
+          <div class="flex items-center gap-4 text-sm">
+            <div class="h-4 bg-gray-300 rounded w-1/6"></div>
+            <div class="h-4 bg-gray-300 rounded w-1/6"></div>
+            <div class="h-4 bg-gray-300 rounded w-1/6"></div>
+          </div>
+          <div class="flex justify-between items-center mt-1">
+            <div class="h-4 bg-gray-300 rounded w-1/5"></div>
+            <div class="h-4 bg-gray-300 rounded w-1/5"></div>
+          </div>
+          <div class="h-4 bg-gray-300 rounded w-full mt-1"></div>
+          <div class="flex gap-1 mt-1 mb-2">
+            <div class="h-3 bg-gray-300 rounded w-1/6"></div>
+            <div class="h-3 bg-gray-300 rounded w-1/6"></div>
+            <div class="h-3 bg-gray-300 rounded w-1/6"></div>
+          </div>
+          <div class="mt-3 pt-2 border-t border-gray-100 bg-gray-50 p-2 rounded">
+            <div class="h-3 bg-gray-300 rounded w-1/3 mb-1"></div>
+            <div class="h-4 bg-gray-300 rounded w-full"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2-B. 데이터 로드 완료 시 -->
+    <div v-else>
+      <template v-if="paginatedRestaurants.length > 0">
+
+        <!-- 데스크톱 페이지네이션 헤더 -->
+        <div class="p-3 border-b hidden md:flex md:justify-between items-center bg-gray-50 rounded-t-lg relative z-20">
+          <div class="w-24"></div>
+
+          <div class="flex gap-2 text-sm">
+            <button @click="currentPage--" :disabled="currentPage === 1" class="px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-50"><i class="ph ph-caret-left"></i></button>
+            <span class="self-center">{{ currentPage }} / {{ totalPages }}</span>
+            <button @click="currentPage++" :disabled="currentPage === totalPages" class="px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-50"><i class="ph ph-caret-right"></i></button>
+          </div>
+
+          <!-- 데스크탑 페이지 사이즈 드롭다운 -->
+          <div class="w-24 flex justify-end relative js-pagesize-dropdown">
+            <!-- [수정] justify-between 사용, 텍스트는 flex-1 text-center로 중앙, 아이콘은 우측 끝 -->
+            <button @click.stop="togglePageSizeDropdown"
+                    class="flex items-center justify-between gap-1 w-24 border rounded p-1 text-sm bg-white hover:bg-gray-100 transition">
+              <span class="flex-1 text-center">{{ pageSize }}개</span>
+              <i :class="['ph ph-caret-down text-gray-500 transition-transform', pageSizeDropdownOpen ? 'rotate-180' : '']"></i>
+            </button>
+
+            <!-- 드롭다운 메뉴 (Desktop) -->
+            <div v-show="pageSizeDropdownOpen"
+              class="absolute right-0 top-full z-50 w-24 mt-1 bg-white border border-gray-200 rounded shadow-lg text-sm">
+              <button @click="pageSize = 10; togglePageSizeDropdown()" class="block w-full text-center px-3 py-2 hover:bg-orange-50">10개</button>
+              <button @click="pageSize = 30; togglePageSizeDropdown()" class="block w-full text-center px-3 py-2 hover:bg-orange-50">30개</button>
+              <button @click="pageSize = 50; togglePageSizeDropdown()" class="block w-full text-center px-3 py-2 hover:bg-orange-50">50개</button>
+              <button @click="pageSize = 100; togglePageSizeDropdown()" class="block w-full text-center px-3 py-2 hover:bg-orange-50">100개</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 모바일 페이지네이션/정렬 헤더 -->
+        <div class="p-3 border-b md:hidden flex flex-col bg-gray-50 rounded-t-lg relative z-20">
+          <div class="w-full flex justify-between items-center mb-2 relative">
+
+            <!-- [수정] 소팅 드롭다운과 토글 버튼을 왼쪽 그룹으로 묶음 (gap-0) -->
+            <div class="flex items-center gap-0">
+              <!-- 모바일 소팅 드롭다운 -->
+              <div class="relative js-sort-dropdown">
+                <!-- [수정] justify-between 사용, 텍스트는 flex-1 text-center, 아이콘은 우측 끝 -->
+                <button @click.stop="toggleSortDropdown"
+                        class="flex items-center justify-between gap-1 w-28 border rounded p-1 text-sm bg-white hover:bg-gray-100 transition rounded-r-none border-r-0">
+                    <span class="truncate flex-1 text-center">{{ sort.field === 'name' ? '상호명' : sort.field === 'category' ? '카테고리' : sort.field === 'rate' ? '평점' : sort.field === 'reviewCount' ? '리뷰수' : '좋아요순' }}</span>
+                    <i :class="['ph ph-caret-down text-gray-500 transition-transform', sortDropdownOpen ? 'rotate-180' : '']"></i>
+                </button>
+
+                <div v-show="sortDropdownOpen"
+                  class="absolute left-0 top-full z-50 w-32 mt-1 bg-white border border-gray-200 rounded shadow-lg text-sm">
+                  <button @click="setSort('name'); toggleSortDropdown()" class="block w-full text-center px-3 py-2 hover:bg-orange-50">상호명</button>
+                  <button @click="setSort('category'); toggleSortDropdown()" class="block w-full text-center px-3 py-2 hover:bg-orange-50">카테고리</button>
+                  <button @click="setSort('rate'); toggleSortDropdown()" class="block w-full text-center px-3 py-2 hover:bg-orange-50">평점</button>
+                  <button @click="setSort('reviewCount'); toggleSortDropdown()" class="block w-full text-center px-3 py-2 hover:bg-orange-50">리뷰 수</button>
+                  <button @click="setSort('like_count'); toggleSortDropdown()" class="block w-full text-center px-3 py-2 hover:bg-orange-50">찜하기 수</button>
+                </div>
+              </div>
+
+              <!-- [수정] 토글 버튼을 드롭다운 바로 옆에 붙임 (border 등 조정) -->
+              <button @click="setSortOrder" :class="['px-2 py-1.5 border rounded rounded-l-none transition text-lg hover:bg-gray-100 bg-white h-[30px] flex items-center', sort.order ? 'text-orange-600' : 'text-gray-400']">
+                <i :class="getSortIcon(sort.field)"></i>
+              </button>
+            </div>
+
+            <!-- 모바일 페이지사이즈 드롭다운 -->
+            <div class="relative js-pagesize-dropdown">
+              <!-- [수정] justify-between 사용, 텍스트는 flex-1 text-center, 아이콘은 우측 끝 -->
+              <button @click.stop="togglePageSizeDropdown"
+                      class="flex items-center justify-between gap-1 w-24 border rounded p-1 text-sm bg-white hover:bg-gray-100 transition">
+                  <span class="flex-1 text-center">{{ pageSize }}개</span>
+                  <i :class="['ph ph-caret-down text-gray-500 transition-transform', pageSizeDropdownOpen ? 'rotate-180' : '']"></i>
+              </button>
+
+              <div v-show="pageSizeDropdownOpen"
+                class="absolute right-0 top-full z-50 w-24 mt-1 bg-white border border-gray-200 rounded shadow-lg text-sm">
+                <button @click="pageSize = 10; togglePageSizeDropdown()" class="block w-full text-center px-3 py-2 hover:bg-orange-50">10개</button>
+                <button @click="pageSize = 30; togglePageSizeDropdown()" class="block w-full text-center px-3 py-2 hover:bg-orange-50">30개</button>
+                <button @click="pageSize = 50; togglePageSizeDropdown()" class="block w-full text-center px-3 py-2 hover:bg-orange-50">50개</button>
+                <button @click="pageSize = 100; togglePageSizeDropdown()" class="block w-full text-center px-3 py-2 hover:bg-orange-50">100개</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex gap-2 text-sm w-full justify-center">
+            <button @click="currentPage--" :disabled="currentPage === 1" class="px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-50"><i class="ph ph-caret-left"></i></button>
+            <span class="self-center">{{ currentPage }} / {{ totalPages }}</span>
+            <button @click="currentPage++" :disabled="currentPage === totalPages" class="px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-50"><i class="ph ph-caret-right"></i></button>
+          </div>
+        </div>
+
+        <div class="p-4 relative">
+          <!-- 데이터가 있을 때 리스트 표시 (데스크탑) -->
+          <div class="hidden md:block">
+            <div class="overflow-x-auto">
+              <div class="min-w-[700px]">
+                <div
+                  class="grid grid-cols-12 gap-2 p-3 bg-gray-100 font-bold text-sm text-gray-600 border-b relative z-10 text-center">
+                  <div class="col-span-3 cursor-pointer hover:text-orange-600 flex items-center justify-center gap-1"
+                    @click="setSort('name')">상호명 <i :class="getSortIcon('name')"></i></div>
+                  <div class="col-span-2 cursor-pointer hover:text-orange-600 flex items-center justify-center gap-1"
+                    @click="setSort('category')">카테고리 <i :class="getSortIcon('category')"></i></div>
+                  <div class="col-span-1 cursor-pointer hover:text-orange-600 flex items-center justify-center gap-1"
+                    @click="setSort('rate')">평점 <i :class="getSortIcon('rate')"></i></div>
+                  <div class="col-span-1 cursor-pointer hover:text-orange-600 flex items-center justify-center gap-1"
+                    @click="setSort('reviewCount')">리뷰수 <i :class="getSortIcon('reviewCount')"></i></div>
+                  <div class="col-span-1 cursor-pointer hover:text-red-500 flex items-center justify-center gap-1"
+                    @click="setSort('like_count')">
+                    <i class="ph-fill ph-heart text-red-400"></i> <i :class="getSortIcon('like_count')"></i>
+                  </div>
+                  <div class="col-span-2 flex items-center justify-center">대표메뉴</div>
+                  <div class="col-span-2 flex items-center justify-center">가격대</div>
+                </div>
+
+                <div class="p-2">
+                  <div v-for="rest in paginatedRestaurants" :key="rest.id" @click="openModal(rest)"
+                    @mousemove="updateTooltip($event, rest)" @mouseleave="hideTooltip"
+                    class="group grid grid-cols-12 gap-2 p-3 border-b hover:bg-orange-50 cursor-pointer transition relative rounded-md">
+                    <div class="col-span-3 font-medium text-center truncate">{{ rest.name }}</div>
+                    <div class="col-span-2 text-sm text-gray-500 text-center">
+                      <span class="bg-gray-100 px-2 py-0.5 rounded text-xs">{{ rest.category }}</span>
+                    </div>
+                    <div class="col-span-1 flex items-center justify-center text-orange-500">
+                      <i class="ph-fill ph-star mr-1"></i> {{ rest.rate || '-' }}
+                    </div>
+                    <div
+                      class="col-span-1 text-sm text-gray-600 text-center font-medium flex items-center justify-center">
+                      <i class="ph ph-chat-text mr-1 text-gray-400"></i>
+                      {{ rest.reviewCount || 0 }}
+                    </div>
+                    <div class="col-span-1 flex items-center justify-center text-red-500 font-medium text-sm">{{
+                      rest.like_count || 0 }}</div>
+                    <div class="col-span-2 text-sm text-gray-600 truncate text-center">{{ rest.signature_menu }}</div>
+                    <div class="col-span-2 text-center text-sm text-gray-600 truncate">{{ rest.price }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 모바일 리스트 -->
+          <div class="md:hidden">
+            <div class="grid grid-cols-1 gap-4">
+              <div v-for="rest in paginatedRestaurants" :key="rest.id"
+                class="bg-white p-4 rounded-lg border border-gray-100 shadow-sm hover:shadow-md hover:border-orange-200 cursor-pointer transition relative flex flex-col gap-2 h-full">
+
+                <div class="flex justify-between items-start" @click="openModal(rest)">
+                  <h3 class="font-bold text-lg text-gray-800 truncate pr-8">{{ rest.name }}</h3>
+                  <div class="absolute top-4 right-4 text-xs font-medium text-gray-500">{{ rest.price || '가격 정보 없음' }}
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-4 text-sm">
+                  <div class="flex items-center text-orange-500 font-bold shrink-0">
+                    <i class="ph-fill ph-star mr-1"></i> {{ rest.rate || '-' }}
+                  </div>
+                  <div class="flex items-center gap-1 text-sm text-gray-500 font-medium text-xs">
+                    <i class="ph ph-chat-text mr-1 text-gray-400 text-base"></i>
+                    <span>{{ rest.reviewCount || 0 }}</span>
+                  </div>
+                  <div @click.stop="toggleLike(rest)"
+                    :class="['relative flex items-center gap-1 text-sm font-medium text-red-500 cursor-pointer transition hover:scale-[1.03]']">
+                    <i :class="[isLiked(rest.id) ? 'ph-fill ph-heart text-base animate-heart-pop' : 'ph ph-heart text-base']"></i>
+                    <span>{{ rest.like_count || 0 }}</span>
+                    <!-- 하트 파티클: 좋아요(isLiked) 상태일 때만 렌더링되어 애니메이션 실행 -->
+                    <template v-if="isLiked(rest.id)">
+                      <i class="ph-fill ph-heart particle-heart animate-particle-1"></i>
+                      <i class="ph-fill ph-heart particle-heart animate-particle-2"></i>
+                      <i class="ph-fill ph-heart particle-heart animate-particle-3"></i>
+                    </template>
+                  </div>
+                </div>
+
+                <div class="flex justify-between text-xs text-gray-500 items-center mt-1" @click="openModal(rest)">
+                  <span class="bg-orange-50 text-orange-700 px-2 py-1 rounded font-medium">{{ rest.category || 'N/A' }}</span>
+                </div>
+
+                <div class="text-sm text-gray-600 truncate mt-1" @click="openModal(rest)">
+                  <span class="text-xs text-gray-400 mr-1">대표메뉴:</span>{{ rest.signature_menu || '-' }}
+                </div>
+
+                <div class="flex flex-wrap gap-1 mt-1 mb-auto" v-if="rest.tags && rest.tags.length"
+                  @click="openModal(rest)">
+                  <span v-for="tag in rest.tags.slice(0, 3)" :key="tag" class="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">#{{ tag }}</span>
+                </div>
+
+                <div v-if="rest.latestReview" @click="openModal(rest)"
+                  class="mt-3 pt-2 border-t border-gray-100 bg-gray-50 p-2 rounded text-xs text-gray-600">
+                  <div class="flex items-center mb-1">
+                    <span class="flex text-orange-400 mr-1 text-xs">
+                      <i v-for="n in 5" :key="'r'+n" :class="n <= rest.latestReviewRate ? 'ph-fill ph-star' : 'ph ph-star'"></i>
+                      <span class="ml-1 text-gray-700 font-medium">{{ rest.latestReviewRate || '-' }}</span>
+                    </span>
+                    <span class="ml-auto text-xs text-gray-400">최근 리뷰</span>
+                  </div>
+                  <p class="truncate italic">"{{ rest.latestReview }}"</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="paginatedRestaurants.length > 0" class="p-3 border-t flex justify-center gap-2">
+          <button @click="currentPage--" :disabled="currentPage === 1" class="px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-50"><i class="ph ph-caret-left"></i></button>
+          <span class="text-sm self-center">{{ currentPage }} / {{ totalPages }}</span>
+          <button @click="currentPage++" :disabled="currentPage === totalPages" class="px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-50"><i class="ph ph-caret-right"></i></button>
+        </div>
+
+      </template>
+
+      <!-- 결과 없음 -->
+      <div v-else class="text-center py-12 text-gray-500">
+        <i class="ph ph-warning-circle text-4xl mb-3 text-gray-300"></i>
+        <p class="text-lg">매장 목록이 비어 있습니다.</p>
+        <p class="text-sm mt-1">'+' 버튼을 눌러 매장을 추가해주세요。</p>
+      </div>
+    </div>
+  </div>
+</div>

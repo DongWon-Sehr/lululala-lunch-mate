@@ -41,9 +41,9 @@
       <div v-if="myPageTab === 'info'" class="space-y-6 animate-fade-in-up">
 
         <h1 v-if="userRankInfo" class="text-3xl font-extrabold text-gray-900 flex items-center gap-2">
-          현재 티어:
           <span :class="['font-bold flex items-center gap-1', userRankInfo.color]"><i
               :class="[userRankInfo.icon, 'text-xl']"></i>{{ userRankInfo.name }}</span>
+          <span>티어</span>
         </h1>
         <h1 v-else class="text-3xl font-extrabold text-gray-900">내 정보</h1>
 
@@ -65,7 +65,6 @@
                     :class="[userRankInfo.nextRankIcon, 'text-xl']"></i>{{ userRankInfo.nextRankName }}</span>
                 <span>티어까지 남은 리뷰:</span>
                 <span class="font-bold text-blue-600">{{ userRankInfo.targetCount - userRankInfo.reviewCount }}개</span>
-                <span class="font-bold"> ({{ userRankInfo.percentage }}%)</span>
               </span>
             </div>
 

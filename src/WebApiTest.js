@@ -1,5 +1,3 @@
-// #WebApiTest.gs
-
 /**
  * WebApi 및 서비스 로직 테스트용 파일
  */
@@ -241,5 +239,79 @@ function checkColumnNames() {
     Logger.log('Sample Data: ' + JSON.stringify(firstRow));
   } else {
     Logger.log('❌ 데이터를 가져오지 못했습니다.');
+  }
+}
+
+function createMenuSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('menu');
+
+  if (sheet) {
+    Logger.log('이미 menu 시트가 존재합니다.');
+  } else {
+    sheet = ss.insertSheet('menu');
+    // 헤더 추가
+    sheet.appendRow(['id', 'restaurant_id', 'name', 'price', 'enabled', 'created_at', 'updated_at']);
+    Logger.log('menu 시트가 생성되었습니다.');
+  }
+}
+
+/**
+ * [마이그레이션] review_count 컬럼을 기존 리뷰 데이터로 채우는 핵심 로직.
+ * ReviewService와 RestaurantService에 의존합니다.
+ */
+function _migration_updateReviewCounts() {
+  console.log("▶ [MIGRATION] review_count 컬럼 데이터 채우기 시작 (0 포함)");
+
+  // 1. 모든 리뷰와 리뷰 카운트 맵을 가져옴
+  const reviewRes = ReviewService.getAllReviews();
+  // 2. 모든 식당 목록을 가져옴 (0개 리뷰 식당 포함)
+  const restaurantRes = RestaurantService.getAllRestaurants();
+
+  if (!reviewRes.success || !restaurantRes.success) {
+    console.error("🔥 [MIGRATION] 데이터 로드 실패. 리뷰 또는 식당 데이터 조회 오류.");
+    return false;
+  }
+
+  const reviewCountMap = reviewRes.data.reviewCountMap;
+  const allRestaurants = restaurantRes.data;
+  let updateCount = 0;
+
+  // 모든 식당을 순회하며 업데이트 (reviewCountMap에 없으면 0을 할당)
+  allRestaurants.forEach(rest => {
+    const restaurantId = rest.id;
+    // 맵에 해당 ID가 없으면 count는 0이 됩니다.
+    const count = reviewCountMap[restaurantId] || 0;
+
+    // RestaurantService를 호출하여 review_count 컬럼 업데이트
+    RestaurantService.updateReviewCount(restaurantId, count);
+    updateCount++;
+  });
+
+  console.log(`✅ [MIGRATION] 총 ${updateCount}개 식당의 review_count 컬럼 업데이트 완료 (0개 포함).`);
+  return true;
+}
+
+/**
+ * [테스트 코드] 마이그레이션 함수를 실행하고 결과를 검증합니다.
+ * Google Apps Script 에디터에서 이 함수를 직접 실행하십시오.
+ */
+function testMigrationReviewCount() {
+  console.log("--- Migration Test: review_count 채우기 ---");
+  const success = _migration_updateReviewCounts();
+  console.log(`--- Migration 결과: ${success ? '성공' : '실패'} ---`);
+
+  if (success) {
+    // 검증 단계: 업데이트 후 실제 데이터가 잘 들어갔는지 확인합니다.
+    const restaurantsRes = RestaurantService.getAllRestaurants();
+    if (restaurantsRes.success && restaurantsRes.data.length > 0) {
+      // 상위 3개 식당의 review_count를 출력하여 수동 검증을 지원합니다.
+      const top3 = restaurantsRes.data.slice(0, 3).map(r =>
+        `[${r.name}] review_count: ${r.review_count || r.reviewCount}`
+      );
+      console.log("\n[Migration 검증] 상위 3개 식당 데이터:");
+      top3.forEach(log => console.log(log));
+      console.log("--- 검증 완료 (스프레드시트에서 수동 확인 필요) ---");
+    }
   }
 }

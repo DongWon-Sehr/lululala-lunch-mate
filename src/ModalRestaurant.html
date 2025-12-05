@@ -1,235 +1,341 @@
-<div v-if="modalOpen"
-  class="fixed inset-x-0 bottom-0 top-28 md:top-16 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+<template v-if="modalOpen">
   <div
-    class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-full md:max-h-full flex flex-col overflow-hidden animate-scale-in relative">
-    <div v-if="isSubmitting || isReviewSubmitting"
-      class="absolute inset-0 bg-white bg-opacity-80 z-[60] flex flex-col items-center justify-center backdrop-blur-[1px]">
-      <i class="ph ph-spinner animate-spin text-4xl mb-3 text-orange-500"></i>
-      <p class="text-sm text-gray-500 animate-pulse font-medium">{{ isReviewSubmitting ? '리뷰 저장 중입니다...' : '저장 중입니다...'
-        }}</p>
-    </div>
+    class="fixed inset-x-0 bottom-0 top-28 md:top-16 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div
+      class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-full md:max-h-full flex flex-col overflow-hidden animate-scale-in relative">
+      <div v-if="isSubmitting || isReviewSubmitting"
+        class="absolute inset-0 bg-white bg-opacity-80 z-[60] flex flex-col items-center justify-center backdrop-blur-[1px]">
+        <i class="ph ph-spinner animate-spin text-4xl mb-3 text-orange-500"></i>
+        <p class="text-sm text-gray-500 animate-pulse font-medium">{{ isReviewSubmitting ? '리뷰 저장 중입니다...' : '저장
+          중입니다...'}}</p>
+      </div>
 
-    <!-- 모달 헤더 시작 -->
-    <div class="p-6 border-b flex justify-between items-center bg-gray-50">
-      <div>
-        <h2 v-if="modalMode === 'create'" class="text-2xl font-bold text-gray-800">식당 추가</h2>
-        <h2 v-else-if="modalMode === 'edit'" class="text-2xl font-bold text-gray-800">식당 정보 수정</h2>
-        <div v-else>
-          <h2 class="2xl font-bold text-gray-800 break-words">{{ selectedRestaurant.name }}</h2>
+      <div class="p-6 border-b flex justify-between items-center bg-gray-50">
+        <div>
+          <h2 v-if="modalMode === 'create'" class="text-2xl font-bold text-gray-800">식당 추가</h2>
+          <h2 v-else-if="modalMode === 'edit'" class="text-2xl font-bold text-gray-800">식당 정보 수정</h2>
+          <div v-else>
+            <h2 class="2xl font-bold text-gray-800 break-words">{{ selectedRestaurant.name }}</h2>
 
-          <!-- 상호명 하단 정보 및 케밥 메뉴 그룹 -->
-          <div class="flex items-center gap-2 mt-1 relative">
-            <!-- 평점 표시 -->
-            <div class="flex items-center gap-1">
-              <div class="flex text-orange-500">
-                <i v-for="n in 5" :key="n" :class="n <= Math.round(selectedRestaurant.rate) ? 'ph-fill ph-star' : 'ph ph-star'"></i>
+            <div class="flex items-center gap-2 mt-1 relative">
+              <div class="flex items-center gap-1">
+                <div class="flex text-orange-500">
+                  <i v-for="n in 5" :key="n"
+                    :class="n <= Math.round(selectedRestaurant.rate) ? 'ph-fill ph-star' : 'ph ph-star'"></i>
+                </div>
+                <span class="text-gray-500 font-bold text-sm">{{ selectedRestaurant.rate }}</span>
               </div>
-              <span class="text-gray-500 font-bold text-sm">{{ selectedRestaurant.rate }}</span>
-            </div>
 
-            <!-- 리뷰 수 표시 -->
-            <div class="flex items-center gap-1 text-sm text-gray-500">
-              <i class="ph ph-chat-text text-sm"></i>
-              <span>{{ selectedRestaurant.reviewCount || 0 }}</span>
-            </div>
+              <div class="flex items-center gap-1 text-sm text-gray-500">
+                <i class="ph ph-chat-text text-sm"></i>
+                <span>{{ selectedRestaurant.reviewCount || 0 }}</span>
+              </div>
 
-            <!-- [핵심 수정] 좋아요 수 표시 및 인터랙션 통합 -->
-            <div @click="modalMode === 'view' && toggleLike(selectedRestaurant)"
-              :class="['flex items-center gap-1 text-sm font-medium text-red-500 cursor-pointer transition hover:scale-[1.03]', modalMode === 'view' ? 'hover:text-red-600' : '']">
-              <i :class="[isLiked(selectedRestaurant.id) ? 'ph-fill ph-heart text-xl animate-heart-pop' : 'ph ph-heart text-xl text-gray-400']"></i>
-              <span>{{ selectedRestaurant.like_count || 0 }}</span>
+              <div @click="modalMode === 'view' && toggleLike(selectedRestaurant)"
+                :class="['flex items-center gap-1 text-sm font-medium text-red-500 cursor-pointer transition hover:scale-[1.03]', modalMode === 'view' ? 'hover:text-red-600' : '']">
+                <i
+                  :class="[isLiked(selectedRestaurant.id) ? 'ph-fill ph-heart text-xl animate-heart-pop' : 'ph ph-heart text-xl text-gray-400']"></i>
+                <span>{{ selectedRestaurant.like_count || 0 }}</span>
 
-              <!-- [NEW] 하트 파티클 효과 추가 -->
-              <template v-if="isLiked(selectedRestaurant.id)">
-                <i class="ph-fill ph-heart particle-heart animate-particle-1"></i>
-                <i class="ph-fill ph-heart particle-heart animate-particle-2"></i>
-                <i class="ph-fill ph-heart particle-heart animate-particle-3"></i>
-              </template>
-            </div>
+                <template v-if="isLiked(selectedRestaurant.id)">
+                  <i class="ph-fill ph-heart particle-heart animate-particle-1"></i>
+                  <i class="ph-fill ph-heart particle-heart animate-particle-2"></i>
+                  <i class="ph-fill ph-heart particle-heart animate-particle-3"></i>
+                </template>
+              </div>
 
-            <!-- [NEW] 케밥 메뉴 버튼 (Admin, View 모드에서만) -->
-            <!-- self-center 유지 -->
-            <div v-if="modalMode === 'view' && currentUser.isAdmin" class="relative self-center">
-              <button ref="kebabButton" @click.stop="toggleKebabMenu"
-                    class="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition active:scale-95"
-                    style="margin-top: 4px;"> <!-- [수정] 시각 보정을 위해 미세하게 아래로 내림 -->
-                <i class="ph ph-dots-three-vertical text-2xl"></i>
-              </button>
+              <div v-if="modalMode === 'view' && currentUser.isAdmin" class="relative self-center">
+                <button ref="kebabButton" @click.stop="toggleKebabMenu"
+                  class="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition active:scale-95"
+                  style="margin-top: 4px;">
+                  <i class="ph ph-dots-three-vertical text-2xl"></i>
+                </button>
 
-              <!-- 케밥 드롭다운 메뉴 (tabindex/blur 제거) -->
-              <div v-show="showKebabMenu" @click.stop
-                class="kebab-dropdown absolute right-0 top-10 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-50 animate-fade-in-down transform origin-top-right focus:outline-none">
-                <div class="py-1">
-                  <!-- 수정하기 옵션 -->
-                  <button @click="startEditRestaurant" class="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600">
+                <div v-show="showKebabMenu" @click.stop
+                  class="kebab-dropdown absolute right-0 top-10 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-50 animate-fade-in-down transform origin-top-right focus:outline-none">
+                  <div class="py-1">
+                    <button @click="startEditRestaurant"
+                      class="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600">
                       <i class="ph ph-pencil-simple mr-3 text-lg"></i>
                       수정하기
-                  </button>
-                  <!-- 삭제하기 옵션 -->
-                  <button @click="deleteRestaurant" class="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+                    </button>
+                    <button @click="deleteRestaurant"
+                      class="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50">
                       <i class="ph ph-trash mr-3 text-lg"></i>
                       삭제하기
-                  </button>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- 오른쪽 버튼 그룹 (닫기, 저장/취소) -->
-      <!-- 닫기 버튼이 상단에 붙도록 정렬 유지 -->
-      <div class="flex gap-2 items-center relative self-start">
-        <template v-if="modalMode === 'view' || modalMode === 'readonly'">
-          <!-- 닫기 버튼만 남음 -->
-          <button @click="closeModal" class="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition"><i class="ph ph-x text-2xl"></i></button>
-        </template>
+        <div class="flex gap-2 items-center relative self-start">
+          <template v-if="modalMode === 'view' || modalMode === 'readonly'">
+            <button @click="closeModal"
+              class="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition"><i
+                class="ph ph-x text-2xl"></i></button>
+          </template>
 
-        <!-- Create / Edit 모드 버튼 (기존 유지) -->
-        <template v-else>
-          <button @click="handleCancel" :disabled="isSubmitting" class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm disabled:opacity-50 font-medium transition">취소</button>
-          <button @click="saveRestaurant" :disabled="isSubmitting" class="px-3 py-1.5 bg-orange-500 text-white rounded hover:bg-orange-600 text-sm disabled:opacity-50 font-bold transition shadow-sm"><i v-if="isSubmitting" class="ph ph-spinner animate-spin mr-1"></i> 저장</button>
-        </template>
-      </div>
-    </div>
-    <!-- 모달 헤더 끝 -->
-
-
-    <div class="p-6 overflow-y-auto custom-scrollbar">
-      <div v-if="modalMode === 'create' || modalMode === 'edit'" class="space-y-4">
-        <div><label class="block text-sm font-medium text-gray-700 mb-1">상호명</label><input :value="restaurantForm.name" @input="restaurantForm.name = $event.target.value" type="text" class="w-full border rounded p-2 text-sm focus:outline-none focus:border-orange-500" placeholder="예: 맛있는 밥집" :disabled="isSubmitting">
-          <div v-if="duplicateList.length > 0" class="mt-2 bg-red-50 p-2 rounded border border-red-100">
-            <p class="text-xs text-red-600 font-bold mb-1">⚠️ 중복 의심 식당 발견 ({{ duplicateList.length }}개)</p>
-            <ul class="text-xs text-gray-600 list-disc list-inside max-h-20 overflow-y-auto">
-              <li v-for="dup in duplicateList" :key="dup.id">{{ dup.name }}</li>
-            </ul>
-          </div>
-        </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div class="relative"><label class="block text-sm font-medium text-gray-700 mb-1">카테고리</label><input type="text" :value="restaurantForm.category" @input="restaurantForm.category = $event.target.value" @focus="openCategoryDropdown" @blur="closeCategoryDropdown" @keydown="onCategoryKeydown" class="w-full border rounded p-2 text-sm focus:outline-none focus:border-orange-500" placeholder="직접 입력 또는 선택" :disabled="isSubmitting">
-            <ul v-if="showCategoryDropdown"
-              class="absolute z-50 w-full bg-white border border-gray-200 rounded shadow-lg max-h-40 overflow-y-auto mt-1">
-              <li v-for="(cat, idx) in filteredCategoryOptions" :key="cat" @mousedown.prevent="selectCategory(cat)"
-                :class="['px-3 py-2 text-sm cursor-pointer hover:bg-orange-50', focusedCategoryIndex === idx ? 'bg-orange-100' : '']">
-                {{ cat }}</li>
-              <li v-if="filteredCategoryOptions.length === 0" class="px-3 py-2 text-sm text-gray-400">새로운 카테고리입니다.</li>
-            </ul>
-            <p v-if="isNewCategory" class="text-xs text-blue-500 mt-1 flex items-center"><i class="ph ph-info mr-1"></i>
-              신규 카테고리로 추가됩니다.</p>
-          </div>
-          <div><label class="block text-sm font-medium text-gray-700 mb-1">가격대</label><input v-model="restaurantForm.price" type="text" class="w-full border rounded p-2 text-sm focus:outline-none focus:border-orange-500" placeholder="예: 1만원대" :disabled="isSubmitting">
-          </div>
-        </div>
-        <div><label class="block text-sm font-medium text-gray-700 mb-1">대표메뉴</label><input v-model="restaurantForm.signature_menu" type="text" class="w-full border rounded p-2 text-sm focus:outline-none focus:border-orange-500" placeholder="예: 김치찌개, 제육볶음" :disabled="isSubmitting">
-        </div>
-        <div><label class="block text-sm font-medium text-gray-700 mb-1">태그</label>
-          <div class="flex flex-wrap gap-2 mb-2 p-2 border rounded bg-white min-h-[42px]">
-            <span v-for="(tag, index) in restaurantForm.tags" :key="index" class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full flex items-center gap-1">#{{ tag }}<button @click="removeTag(index)" class="hover:text-red-500" :disabled="isSubmitting"><i class="ph ph-x"></i></button></span><input v-model="restaurantForm.tagInput" @compositionstart="handleCompositionStart" @compositionend="handleCompositionEnd" @keyup.enter="processTagInput" @keyup.space="processTagInput" type="text" class="flex-1 bg-transparent text-sm focus:outline-none min-w-[100px]" placeholder="태그 입력..." :disabled="isSubmitting">
-          </div>
-        </div>
-        <div v-if="modalMode === 'edit'" class="mt-4 pt-4 border-t">
-          <p class="text-xs text-gray-500 mb-2 flex items-center"><i class="ph ph-info mr-1 text-orange-500"></i>위치 정보는
-            <a :href="GOOGLE_SHEET_URL" target="_blank" class="text-blue-500 hover:underline mx-1 font-medium">구글 시트</a>
-            원본 데이터에서 수정해주세요.
-          </p>
-          <div class="w-full h-32 bg-gray-200 rounded overflow-hidden opacity-60 pointer-events-none">
-            <iframe width="100%" height="100%" frameborder="0" style="border:0"
-              :src="selectedRestaurant.mapUrl ? `https://maps.google.com/maps?q=${encodeURIComponent(selectedRestaurant.location || selectedRestaurant.name)}&hl=ko&z=15&output=embed` : `https://maps.google.com/maps?q=${encodeURIComponent(selectedRestaurant.location || selectedRestaurant.name)}&hl=ko&z=15&output=embed`"
-              allowfullscreen></iframe>
-          </div>
+          <template v-else>
+            <button @click="handleCancel" :disabled="isSubmitting"
+              class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm disabled:opacity-50 font-medium transition">취소</button>
+            <button @click="saveRestaurant" :disabled="isSubmitting"
+              class="px-3 py-1.5 bg-orange-500 text-white rounded hover:bg-orange-600 text-sm disabled:opacity-50 font-bold transition shadow-sm"><i
+                v-if="isSubmitting" class="ph ph-spinner animate-spin mr-1"></i> 저장</button>
+          </template>
         </div>
       </div>
+      <div class="p-6 overflow-y-auto custom-scrollbar">
+        <div v-if="modalMode === 'create' || modalMode === 'edit'" class="space-y-4">
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">상호명</label><input
+              :value="restaurantForm.name" @input="restaurantForm.name = $event.target.value" type="text"
+              class="w-full border rounded p-2 text-sm focus:outline-none focus:border-orange-500"
+              placeholder="예: 맛있는 밥집" :disabled="isSubmitting">
+            <div v-if="duplicateList.length > 0" class="mt-2 bg-red-50 p-2 rounded border border-red-100">
+              <p class="text-xs text-red-600 font-bold mb-1">⚠️ 중복 의심 식당 발견 ({{ duplicateList.length }}개)</p>
+              <ul class="text-xs text-gray-600 list-disc list-inside max-h-20 overflow-y-auto">
+                <li v-for="dup in duplicateList" :key="dup.id">{{ dup.name }}</li>
+              </ul>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="relative"><label class="block text-sm font-medium text-gray-700 mb-1">카테고리</label><input
+                type="text" :value="restaurantForm.category" @input="restaurantForm.category = $event.target.value"
+                @focus="openCategoryDropdown" @blur="closeCategoryDropdown" @keydown="onCategoryKeydown"
+                class="w-full border rounded p-2 text-sm focus:outline-none focus:border-orange-500"
+                placeholder="직접 입력 또는 선택" :disabled="isSubmitting">
+              <ul v-if="showCategoryDropdown"
+                class="absolute z-50 w-full bg-white border border-gray-200 rounded shadow-lg max-h-40 overflow-y-auto mt-1">
+                <li v-for="(cat, idx) in filteredCategoryOptions" :key="cat" @mousedown.prevent="selectCategory(cat)"
+                  :class="['px-3 py-2 text-sm cursor-pointer hover:bg-orange-50', focusedCategoryIndex === idx ? 'bg-orange-100' : '']">
+                  {{ cat }}</li>
+                <li v-if="filteredCategoryOptions.length === 0" class="px-3 py-2 text-sm text-gray-400">새로운 카테고리입니다.
+                </li>
+              </ul>
+              <p v-if="isNewCategory" class="text-xs text-blue-500 mt-1 flex items-center">
+                <i class="ph ph-info mr-1"></i>
+                신규 카테고리로 추가됩니다.
+              </p>
+            </div>
 
-      <div v-else>
-        <div class="grid grid-cols-2 gap-4 mb-4">
-          <div class="bg-gray-50 p-3 rounded">
-            <p class="text-xs text-gray-500">카테고리</p>
-            <p class="font-medium">{{ selectedRestaurant.category }}</p>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">가격대 (자동 계산)</label>
+              <input :value="formatNumberWithCommas(calculatedPriceDisplay) + '원'" type="text"
+                class="w-full border rounded p-2 text-sm focus:outline-none bg-gray-100 text-gray-600 cursor-not-allowed"
+                placeholder="메뉴 정보 기반으로 자동 계산됩니다." readonly disabled>
+            </div>
+
           </div>
-          <div class="bg-gray-50 p-3 rounded">
-            <p class="text-xs text-gray-500">가격대</p>
-            <p class="font-medium">{{ selectedRestaurant.price }}</p>
+
+          <div class="mt-4 border-t pt-4">
+            <div class="flex justify-between items-center mb-2">
+              <label class="block text-sm font-bold text-gray-700">메뉴 및 가격 상세 정보</label>
+              <button @click="addMenuInput" type="button"
+                class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded transition-colors flex items-center gap-1">
+                <i class="ph-bold ph-plus"></i> 메뉴 추가
+              </button>
+            </div>
+            <div class="space-y-2 max-h-60 overflow-y-auto pr-1 border rounded p-2">
+
+              <div v-for="(menu, idx) in restaurantForm.menus" :key="idx"
+                class="flex gap-2 items-center bg-white rounded p-1">
+
+                <button @click="toggleMenuSignature(idx)" type="button"
+                  class="w-8 h-8 flex items-center justify-center rounded-lg border transition-all shrink-0"
+                  :class="menu.is_signature ? 'bg-white border-amber-200 text-amber-500' : 'bg-white border-gray-200 text-gray-300 hover:text-gray-400'"
+                  title="대표 메뉴로 설정 (다중 선택)">
+                  <i :class="menu.is_signature ? 'ph-fill ph-star' : 'ph-bold ph-star'"></i>
+                </button>
+
+                <input v-model="menu.name" type="text" placeholder="메뉴명"
+                  class="flex-grow border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+
+                <input :value="formatNumberWithCommas(menu.price)"
+                  @input="handleMenuPriceInput(menu, $event.target.value)" type="text" inputmode="numeric"
+                  placeholder="가격"
+                  class="w-24 border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-right shrink-0">
+
+                <button @click="removeMenuInput(idx)" class="text-gray-400 hover:text-red-500 p-1 shrink-0"><i
+                    class="ph-bold ph-trash"></i></button>
+              </div>
+
+              <div v-if="restaurantForm.menus.length === 0"
+                class="text-sm text-gray-400 italic text-center py-2 bg-gray-50 rounded-lg">
+                메뉴를 추가하여 평균 가격 정보를 제공해주세요.
+              </div>
+            </div>
           </div>
-          <div class="col-span-2 bg-gray-50 p-3 rounded">
-            <p class="text-xs text-gray-500">대표메뉴</p>
-            <p class="font-medium">{{ selectedRestaurant.signature_menu }}</p>
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">대표메뉴 (텍스트)</label><input
+              v-model="restaurantForm.signature_menu" type="text"
+              class="w-full border rounded p-2 text-sm focus:outline-none focus:border-orange-500"
+              placeholder="예: 김치찌개, 제육볶음 (메뉴 정보 필드와는 별개로 사용)" :disabled="isSubmitting">
           </div>
-          <div class="col-span-2 bg-gray-50 p-3 rounded">
-            <p class="text-xs text-gray-500 mb-2">위치</p>
-            <p class="text-[10px] text-gray-400 flex items-center mb-2">
-              <i class="ph ph-info mr-1 text-orange-500"></i>위치 정보 수정은 <a :href="GOOGLE_SHEET_URL" target="_blank"
-                class="text-blue-500 hover:underline mx-1 font-medium">구글 시트</a>에서 가능합니다.
+          <div><label class="block text-sm font-medium text-gray-700 mb-1">태그</label>
+            <div class="flex flex-wrap gap-2 mb-2 p-2 border rounded bg-white min-h-[42px]">
+              <span v-for="(tag, index) in restaurantForm.tags" :key="index"
+                class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full flex items-center gap-1">#{{ tag
+                }}<button @click="removeTag(index)" class="hover:text-red-500" :disabled="isSubmitting"><i
+                    class="ph ph-x"></i></button></span><input v-model="restaurantForm.tagInput"
+                @compositionstart="handleCompositionStart" @compositionend="handleCompositionEnd"
+                @keyup.enter="processTagInput" @keyup.space="processTagInput" type="text"
+                class="flex-1 bg-transparent text-sm focus:outline-none min-w-[100px]" placeholder="태그 입력..."
+                :disabled="isSubmitting">
+            </div>
+          </div>
+          <div v-if="modalMode === 'edit'" class="mt-4 pt-4 border-t">
+            <p class="text-xs text-gray-500 mb-2 flex items-center"><i class="ph ph-info mr-1 text-orange-500"></i>위치
+              정보는
+              <a :href="GOOGLE_SHEET_URL" target="_blank" class="text-blue-500 hover:underline mx-1 font-medium">구글
+                시트</a>
+              원본 데이터에서 수정해주세요.
             </p>
-            <div v-if="selectedRestaurant.location || selectedRestaurant.name"
-              class="w-full h-48 bg-gray-200 rounded overflow-hidden mb-2 relative">
-              <iframe class="w-full h-full pointer-events-auto" frameborder="0" style="border:0; pointer-events: auto;"
+            <div class="w-full h-32 bg-gray-200 rounded overflow-hidden opacity-60 pointer-events-none">
+              <iframe width="100%" height="100%" frameborder="0" style="border:0"
                 :src="selectedRestaurant.mapUrl ? `https://maps.google.com/maps?q=${encodeURIComponent(selectedRestaurant.location || selectedRestaurant.name)}&hl=ko&z=15&output=embed` : `https://maps.google.com/maps?q=${encodeURIComponent(selectedRestaurant.location || selectedRestaurant.name)}&hl=ko&z=15&output=embed`"
                 allowfullscreen></iframe>
             </div>
-            <div v-else
-              class="w-full h-48 bg-gray-100 rounded flex items-center justify-center text-gray-400 text-sm flex-col mb-2">
-              <i class="ph ph-map-trifold text-2xl mb-1"></i>위치 정보 없음
-            </div>
-            <div class="flex flex-col gap-1">
-              <div v-if="selectedRestaurant.location || selectedRestaurant.name"
-                class="font-bold text-gray-800 text-sm flex items-center">
-                <i class="ph-fill ph-map-pin text-lg text-orange-600 mr-1"></i>{{ selectedRestaurant.name }}
-              </div>
-            </div>
-          </div>
-          <div class="col-span-2">
-            <div class="flex flex-wrap gap-1">
-              <span v-for="tag in selectedRestaurant.tags" :key="tag" class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">#{{ tag }}</span>
-            </div>
           </div>
         </div>
 
-        <div v-if="modalMode === 'view'" class="mb-8 border-t pt-6">
-          <h3 class="font-bold mb-3">리뷰 작성</h3>
-          <div class="bg-orange-50 p-4 rounded-lg">
-            <div class="flex items-center gap-2 mb-3">
-              <div class="flex cursor-pointer" @mouseleave="hoverRate = 0">
-                <i v-for="n in 5" :key="n" @click="reviewForm.rate = n" @mouseover="hoverRate = n" :class="['text-xl', (hoverRate || reviewForm.rate) >= n ? 'ph-fill ph-star text-orange-500' : 'ph ph-star text-gray-300']"></i>
-              </div>
-              <input v-model="reviewForm.user_name" placeholder="작성자 (필수)" class="text-sm px-2 py-1 border rounded w-32 ml-auto">
+        <div v-else>
+          <div class="grid grid-cols-2 gap-4 mb-4">
+            <div class="bg-gray-50 p-3 rounded">
+              <p class="text-xs text-gray-500">카테고리</p>
+              <p class="font-medium">{{ selectedRestaurant.category }}</p>
             </div>
-            <textarea v-model="reviewForm.comment" placeholder="솔직한 후기를 남겨주세요." class="w-full text-sm p-2 border rounded h-20 resize-none focus:outline-none focus:border-orange-500 mb-2"></textarea>
-            <button @click="submitReview" :disabled="isSubmitting" class="w-full bg-orange-500 text-white text-sm py-2 rounded font-bold hover:bg-orange-600 disabled:opacity-50 flex justify-center items-center"><i v-if="isSubmitting" class="ph ph-spinner animate-spin mr-2"></i> {{ isSubmitting ? '등록 중...' : '리뷰 등록하기' }}</button>
-          </div>
-        </div>
+            <div class="bg-gray-50 p-3 rounded">
+              <p class="text-xs text-gray-500">가격대</p>
+              <p class="font-medium">{{ formatPrice(selectedRestaurant.price) }}</p>
+            </div>
 
-        <div v-if="modalMode === 'view' || modalMode === 'readonly'">
-          <h3 class="font-bold mb-3">최근 리뷰</h3>
-          <div v-if="reviews.length === 0" class="text-gray-400 text-sm text-center py-4">아직 리뷰가 없습니다.</div>
-          <div v-for="review in reviews" :key="review.id"
-            class="mb-4 border-b pb-4 last:border-0 transition-colors duration-500 rounded p-2"
-            :class="{ 'review-highlight': review.id === highlightReviewId }">
-            <div v-if="editingReviewId === review.id"
-              class="bg-orange-50 p-3 rounded border border-orange-200 relative">
-              <div class="flex items-center gap-2 mb-2">
-                <i v-for="n in 5" :key="n" @click="editForm.rate = n" :class="['text-lg cursor-pointer', editForm.rate >= n ? 'ph-fill ph-star text-orange-500' : 'ph ph-star text-gray-300']"></i>
-              </div>
-              <textarea v-model="editForm.comment" class="w-full p-2 border rounded text-sm h-20 mb-2"></textarea>
-              <div class="flex justify-end gap-2">
-                <button @click="cancelEditReview" class="text-xs bg-gray-200 px-2 py-1 rounded">취소</button><button @click="saveEditReview" :disabled="isReviewSubmitting" class="text-xs bg-orange-500 text-white px-2 py-1 rounded">저장</button>
-              </div>
-            </div>
-            <div v-else>
-              <div class="flex justify-between items-start mb-1">
-                <div class="flex items-center gap-2">
-                  <span class="flex text-orange-400 text-xs"><i v-for="n in 5" :key="n" :class="n <= review.rate ? 'ph-fill ph-star' : 'ph ph-star'"></i></span><span class="font-bold text-sm">{{ review.user_name }}</span>
-                  <div v-if="canManageReview(review) && modalMode !== 'readonly'" class="flex gap-1 ml-2">
-                    <button @click="startEditReview(review)" class="text-gray-400 hover:text-blue-500" title="수정"><i class="ph ph-pencil-simple"></i></button><button @click="deleteReview(review.id)" class="text-gray-400 hover:text-red-500" title="삭제"><i class="ph ph-trash"></i></button>
-                  </div>
+            <div class="col-span-2 bg-gray-50 p-3 rounded">
+              <p class="text-xs text-gray-500 mb-2">메뉴 정보</p>
+
+              <div v-if="sortedMenus && sortedMenus.length > 0" class="space-y-2">
+                <div v-for="(menu, idx) in sortedMenus" :key="idx"
+                  class="flex justify-between items-center text-sm pb-1.5 transition-colors"
+                  :class="menu.is_signature ? 'font-bold' : ''">
+
+                  <span class="text-gray-800 flex items-center shrink-0">
+
+                    <span class="text-amber-600 mr-1 w-4 text-center">
+                      <i v-if="menu.is_signature" class="ph-fill ph-star"></i>
+                    </span>
+                    {{ menu.name }}
+                  </span>
+
+                  <span class="text-gray-600 ml-3 shrink-0">{{ formatPrice(menu.price) }}</span>
+
+                  <span class="flex-1 min-w-[1rem]"></span>
                 </div>
-                <span class="text-xs text-gray-400">{{ formatDate(review.created_at) }}</span>
               </div>
-              <p class="text-sm text-gray-700 bg-gray-50 p-2 rounded" v-html="formatReviewComment(review.comment)"></p>
+
+              <div v-else class="text-sm text-gray-400 text-center py-2">
+                메뉴 정보가 없습니다.
+              </div>
+            </div>
+
+            <div class="col-span-2 bg-gray-50 p-3 rounded">
+              <p class="text-xs text-gray-500">대표메뉴</p>
+              <p class="font-medium">{{ selectedRestaurant.signature_menu }}</p>
+            </div>
+
+            <div class="col-span-2 bg-gray-50 p-3 rounded">
+              <p class="text-xs text-gray-500 mb-2">위치</p>
+              <p class="text-[10px] text-gray-400 flex items-center mb-2">
+                <i class="ph ph-info mr-1 text-orange-500"></i>위치 정보 수정은 <a :href="GOOGLE_SHEET_URL" target="_blank"
+                  class="text-blue-500 hover:underline mx-1 font-medium">구글 시트</a>에서 가능합니다.
+              </p>
+              <div v-if="selectedRestaurant.location || selectedRestaurant.name"
+                class="w-full h-48 bg-gray-200 rounded overflow-hidden mb-2 relative">
+                <iframe class="w-full h-full pointer-events-auto" frameborder="0"
+                  style="border:0; pointer-events: auto;"
+                  :src="selectedRestaurant.mapUrl ? `https://maps.google.com/maps?q=${encodeURIComponent(selectedRestaurant.location || selectedRestaurant.name)}&hl=ko&z=15&output=embed` : `https://maps.google.com/maps?q=${encodeURIComponent(selectedRestaurant.location || selectedRestaurant.name)}&hl=ko&z=15&output=embed`"
+                  allowfullscreen></iframe>
+              </div>
+              <div v-else
+                class="w-full h-48 bg-gray-100 rounded flex items-center justify-center text-gray-400 text-sm flex-col mb-2">
+                <i class="ph ph-map-trifold text-2xl mb-1"></i>위치 정보 없음
+              </div>
+              <div class="flex flex-col gap-1">
+                <div v-if="selectedRestaurant.location || selectedRestaurant.name"
+                  class="font-bold text-gray-800 text-sm flex items-center">
+                  <i class="ph-fill ph-map-pin text-lg text-orange-600 mr-1"></i>{{ selectedRestaurant.name }}
+                </div>
+              </div>
+            </div>
+            <div class="col-span-2">
+              <div class="flex flex-wrap gap-1">
+                <span v-for="tag in selectedRestaurant.tags" :key="tag"
+                  class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">#{{ tag }}</span>
+              </div>
             </div>
           </div>
-        </div>
 
+          <div v-if="modalMode === 'view'" class="mb-8 border-t pt-6">
+            <h3 class="font-bold mb-3">리뷰 작성</h3>
+            <div class="bg-orange-50 p-4 rounded-lg">
+              <div class="flex items-center gap-2 mb-3">
+                <div class="flex cursor-pointer" @mouseleave="hoverRate = 0">
+                  <i v-for="n in 5" :key="n" @click="reviewForm.rate = n" @mouseover="hoverRate = n"
+                    :class="['text-xl', (hoverRate || reviewForm.rate) >= n ? 'ph-fill ph-star text-orange-500' : 'ph ph-star text-gray-300']"></i>
+                </div>
+                <input v-model="reviewForm.user_name" placeholder="작성자 (필수)"
+                  class="text-sm px-2 py-1 border rounded w-32 ml-auto">
+              </div>
+              <textarea v-model="reviewForm.comment" placeholder="솔직한 후기를 남겨주세요."
+                class="w-full text-sm p-2 border rounded h-20 resize-none focus:outline-none focus:border-orange-500 mb-2"></textarea>
+              <button @click="submitReview" :disabled="isSubmitting"
+                class="w-full bg-orange-500 text-white text-sm py-2 rounded font-bold hover:bg-orange-600 disabled:opacity-50 flex justify-center items-center"><i
+                  v-if="isSubmitting" class="ph ph-spinner animate-spin mr-2"></i> {{ isSubmitting ? '등록 중...' : '리뷰
+                등록하기'
+                }}</button>
+            </div>
+          </div>
+
+          <div v-if="modalMode === 'view' || modalMode === 'readonly'">
+            <h3 class="font-bold mb-3">최근 리뷰</h3>
+            <div v-if="reviews.length === 0" class="text-gray-400 text-sm text-center py-4">아직 리뷰가 없습니다.</div>
+            <div v-for="review in reviews" :key="review.id"
+              class="mb-4 border-b pb-4 last:border-0 transition-colors duration-500 rounded p-2"
+              :class="{ 'review-highlight': review.id === highlightReviewId }">
+              <div v-if="editingReviewId === review.id"
+                class="bg-orange-50 p-3 rounded border border-orange-200 relative">
+                <div class="flex items-center gap-2 mb-2">
+                  <i v-for="n in 5" :key="n" @click="editForm.rate = n"
+                    :class="['text-lg cursor-pointer', editForm.rate >= n ? 'ph-fill ph-star text-orange-500' : 'ph ph-star text-gray-300']"></i>
+                </div>
+                <textarea v-model="editForm.comment" class="w-full p-2 border rounded text-sm h-20 mb-2"></textarea>
+                <div class="flex justify-end gap-2">
+                  <button @click="cancelEditReview" class="text-xs bg-gray-200 px-2 py-1 rounded">취소</button><button
+                    @click="saveEditReview" :disabled="isReviewSubmitting"
+                    class="text-xs bg-orange-500 text-white px-2 py-1 rounded">저장</button>
+                </div>
+              </div>
+              <div v-else>
+                <div class="flex justify-between items-start mb-1">
+                  <div class="flex items-center gap-2">
+                    <span class="flex text-orange-400 text-xs"><i v-for="n in 5" :key="n"
+                        :class="n <= review.rate ? 'ph-fill ph-star' : 'ph ph-star'"></i></span><span
+                      class="font-bold text-sm">{{ review.user_name }}</span>
+                    <div v-if="canManageReview(review) && modalMode !== 'readonly'" class="flex gap-1 ml-2">
+                      <button @click="startEditReview(review)" class="text-gray-400 hover:text-blue-500" title="수정"><i
+                          class="ph ph-pencil-simple"></i></button><button @click="deleteReview(review.id)"
+                        class="text-gray-400 hover:text-red-500" title="삭제"><i class="ph ph-trash"></i></button>
+                    </div>
+                  </div>
+                  <span class="text-xs text-gray-400">{{ formatDate(review.created_at) }}</span>
+                </div>
+                <p class="text-sm text-gray-700 bg-gray-50 p-2 rounded" v-html="formatReviewComment(review.comment)">
+                </p>
+              </div>
+            </div>
+          </div>
+
+        </div>
       </div>
     </div>
   </div>
-</div>
+</template>

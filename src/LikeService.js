@@ -28,7 +28,7 @@ const LikeService = {
       if (!userEmail) throw new Error("로그인이 필요합니다.");
 
       const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('like');
-      
+
       const data = sheet.getDataRange().getValues();
       // 데이터가 없으면 헤더 생성 (첫 실행 시)
       if (data.length === 0) {
@@ -91,6 +91,6 @@ const LikeService = {
     }).length;
 
     // [수정] 이제 RestaurantService에 구현된 함수를 호출합니다.
-    RestaurantService.updateLikeCount(restaurantId, count); 
+    RestaurantService.updateLikeCount(restaurantId, count);
   }
 };

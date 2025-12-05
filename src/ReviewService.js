@@ -24,8 +24,8 @@ const ReviewService = {
           }
 
           // [수정 2] 안전한 변환 함수 호출
-          r.created_at = this.safeDateIsoString(rawCreated);
-          r.updated_at = this.safeDateIsoString(rawUpdated);
+          r.created_at = Util.safeDateIsoString(rawCreated);
+          r.updated_at = Util.safeDateIsoString(rawUpdated);
 
           // 객체 필드 처리
           if (typeof r.user_email === 'object' && r.user_email) r.user_email = r.user_email.text || r.user_email.value;
@@ -60,25 +60,6 @@ const ReviewService = {
     }
   },
 
-  // [수정 3] 에러 시 '현재 시간'이 아닌 'null' 반환으로 변경 (정렬 왜곡 방지)
-  safeDateIsoString: function (val) {
-    if (!val) return null; // 값이 없으면 null
-    try {
-      // 구글 시트 날짜 포맷(숫자) 처리
-      if (typeof val === 'number') {
-        const sheetDate = new Date((val - 25569) * 86400 * 1000);
-        return sheetDate.toISOString();
-      }
-      // 일반 날짜 처리
-      const d = new Date(val);
-      // 유효하지 않은 날짜(Invalid Date)면 null 반환
-      if (isNaN(d.getTime())) return null;
-
-      return d.toISOString();
-    } catch (e) {
-      return null; // 에러 발생 시 null
-    }
-  },
 
   // [수정] 특정 식당 리뷰만 필터링하여 반환
   getReviewsByRestaurant: function (restaurantId) {

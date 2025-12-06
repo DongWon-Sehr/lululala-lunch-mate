@@ -92,7 +92,7 @@
           <div><label class="block text-sm font-medium text-gray-700 mb-1">상호명</label><input
               :value="restaurantForm.name" @input="restaurantForm.name = $event.target.value" type="text"
               class="w-full border rounded p-2 text-sm focus:outline-none focus:border-orange-500"
-              placeholder="예: 맛있는 밥집" :disabled="isSubmitting">
+              placeholder="예: 이태리 부대찌개" :disabled="isSubmitting">
             <div v-if="duplicateList.length > 0" class="mt-2 bg-red-50 p-2 rounded border border-red-100">
               <p class="text-xs text-red-600 font-bold mb-1">⚠️ 중복 의심 식당 발견 ({{ duplicateList.length }}개)</p>
               <ul class="text-xs text-gray-600 list-disc list-inside max-h-20 overflow-y-auto">
@@ -131,7 +131,7 @@
 
           <div class="mt-4 border-t pt-4">
             <div class="flex justify-between items-center mb-2">
-              <label class="block text-sm font-bold text-gray-700">메뉴 및 가격 상세 정보</label>
+              <label class="block text-sm font-bold text-gray-700">메뉴 정보</label>
               <button @click="addMenuInput" type="button"
                 class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded transition-colors flex items-center gap-1">
                 <i class="ph-bold ph-plus"></i> 메뉴 추가

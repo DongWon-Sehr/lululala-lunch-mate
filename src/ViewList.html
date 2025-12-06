@@ -52,7 +52,7 @@
 
           <label class="block text-xs font-medium text-gray-500 mb-1">최대 가격 ({{ filters.maxPrice > 0 ?
             formatNumberWithCommas(filters.maxPrice) + '원' : '제한 없음' }})</label>
-          <input type="range" min="0" max="50000" step="1000" v-model.number="filters.maxPrice"
+          <input type="range" min="0" max="30000" step="1000" v-model.number="filters.maxPrice"
             class="w-full accent-orange-500" />
         </div>
       </div>
@@ -211,7 +211,8 @@
                 <button @click.stop="toggleSortDropdown"
                   class="flex items-center justify-between gap-1 w-28 border rounded p-1 text-sm bg-white hover:bg-gray-100 transition rounded-r-none border-r-0">
                   <span class="truncate flex-1 text-center">{{ sort.field === 'name' ? '상호명' : sort.field === 'category'
-                    ? '카테고리' : sort.field === 'rate' ? '평점' : sort.field === 'reviewCount' ? '리뷰수' : '좋아요순' }}</span>
+                    ? '카테고리' : sort.field === 'rate' ? '평점' : sort.field === 'review_count' ? '리뷰' : sort.field ===
+                    'like_count' ? '찜하기' : sort.field === 'price' ? '가격대' : '상호명' }}</span>
                   <i
                     :class="['ph ph-caret-down text-gray-500 transition-transform', sortDropdownOpen ? 'rotate-180' : '']"></i>
                 </button>
@@ -224,12 +225,12 @@
                     class="block w-full text-center px-3 py-2 hover:bg-orange-50">카테고리</button>
                   <button @click="setSort('rate'); toggleSortDropdown()"
                     class="block w-full text-center px-3 py-2 hover:bg-orange-50">평점</button>
-                  <button @click="setSort('reviewCount'); toggleSortDropdown()"
-                    class="block w-full text-center px-3 py-2 hover:bg-orange-50">리뷰 수</button>
+                  <button @click="setSort('review_count'); toggleSortDropdown()"
+                    class="block w-full text-center px-3 py-2 hover:bg-orange-50">리뷰</button>
                   <button @click="setSort('like_count'); toggleSortDropdown()"
-                    class="block w-full text-center px-3 py-2 hover:bg-orange-50">찜하기 수</button>
+                    class="block w-full text-center px-3 py-2 hover:bg-orange-50">찜하기</button>
                   <button @click="setSort('price'); toggleSortDropdown()"
-                    class="block w-full text-center px-3 py-2 hover:bg-orange-50">가격순</button>
+                    class="block w-full text-center px-3 py-2 hover:bg-orange-50">가격대</button>
                 </div>
               </div>
 
@@ -283,7 +284,7 @@
                   <div class="col-span-1 cursor-pointer hover:text-orange-600 flex items-center justify-center gap-1"
                     @click="setSort('rate')">평점 <i :class="getSortIcon('rate')"></i></div>
                   <div class="col-span-1 cursor-pointer hover:text-orange-600 flex items-center justify-center gap-1"
-                    @click="setSort('reviewCount')">리뷰수 <i :class="getSortIcon('reviewCount')"></i></div>
+                    @click="setSort('review_count')">리뷰 <i :class="getSortIcon('review_count')"></i></div>
                   <div class="col-span-1 cursor-pointer hover:text-red-500 flex items-center justify-center gap-1"
                     @click="setSort('like_count')">
                     <i class="ph-fill ph-heart text-red-400"></i> <i :class="getSortIcon('like_count')"></i>
@@ -306,7 +307,7 @@
                     <div
                       class="col-span-1 text-sm text-gray-600 text-center font-medium flex items-center justify-center">
                       <i class="ph ph-chat-text mr-1 text-gray-400"></i>
-                      {{ rest.reviewCount || 0 }}
+                      {{ rest.review_count || 0 }}
                     </div>
                     <div class="col-span-1 flex items-center justify-center text-red-500 font-medium text-sm">{{
                       rest.like_count || 0 }}</div>
@@ -337,7 +338,7 @@
                   </div>
                   <div class="flex items-center gap-1 text-sm text-gray-500 font-medium text-xs">
                     <i class="ph ph-chat-text mr-1 text-gray-400 text-base"></i>
-                    <span>{{ rest.reviewCount || 0 }}</span>
+                    <span>{{ rest.review_count || 0 }}</span>
                   </div>
                   <div @click.stop="toggleLike(rest)"
                     :class="['relative flex items-center gap-1 text-sm font-medium text-red-500 cursor-pointer transition hover:scale-[1.03]']">

@@ -21,27 +21,36 @@
       const windowWidth = ref(window.innerWidth);
       const currentUser = ref({ email: '', isAdmin: false });
       const isLoading = ref(true);
-      const loadingText = ref('사무실 근처 맛집 정보와 솔직 리뷰 불러오는 중...');
+      const loadingText = ref('사무실 근처 맛집 정보와 솔직 리뷰 불러오는 중... 🚀');
       const loadingInterval = ref(null); // [NEW] 타이머 ID 저장
       const currentPhraseIndex = ref(0); // [NEW] 현재 문구 인덱스
 
       // [NEW] 로딩 문구 리스트 정의
       const LOADING_PHRASES = [
-        '사무실 근처 맛집 정보와 솔직 리뷰 불러오는 중...',
-        '오늘은 뭘 먹을지, 행운의 선택지를 찾는 중...',
+        '사무실 근처 맛집 정보와 솔직 리뷰 불러오는 중... 🚀',
+        '룰루랄라 빅데이터 속을 헤엄치는 중...🐟',
         '새로운 꿀팁 리뷰를 수집하고 있습니다. 🍯',
         '지도 데이터를 동기화하고 있습니다. 🗺️',
         '찜 목록과 리뷰 기록을 확인 중입니다. ❤️',
         '리뷰 평점 통계를 계산하고 있습니다. ✨',
-        '데이터를 최적화하고 있습니다. 잠시만 기다려주세요.',
+        '데이터를 최적화하고 있습니다. 잠시만 기다려주세요. 📊',
         '오늘의 메뉴 추천을 준비 중... 🍜',
+      ];
+
+      const RANK_TIERS = [
+        { name: '아이언', min: 0, max: 0, nextMin: 1, icon: 'ph ph-crown-simple', color: 'text-gray-500' },
+        { name: '브론즈', min: 1, max: 9, nextMin: 10, icon: 'ph-fill ph-crown-simple', color: 'text-amber-700' },
+        { name: '실버', min: 10, max: 29, nextMin: 30, icon: 'ph-fill ph-crown-simple', color: 'text-gray-400' },
+        { name: '골드', min: 30, max: 49, nextMin: 50, icon: 'ph-fill ph-crown-simple', color: 'text-yellow-500' },
+        { name: '플래티넘', min: 50, max: 69, nextMin: 70, icon: 'ph-fill ph-crown', color: 'text-sky-400' },
+        { name: '다이아몬드', min: 70, max: 99, nextMin: 100, icon: 'ph-fill ph-diamond', color: 'text-blue-500' },
+        { name: '블랙 다이아몬드', min: 100, max: Infinity, nextMin: 100, icon: 'ph-fill ph-diamond', color: 'text-gray-900 bg-gray-100' },
       ];
 
       const showUserModal = ref(false);
 
-      const isFilterOpen = ref(false); // 초기 상태는 접힘
+      const isFilterOpen = ref(false);
       const filters = ref({ categories: [], tags: [], minRate: 0, maxPrice: 0 });
-      // [NEW] 필터 상태
       const showLikeFilter = ref(false);
       const showMyReviewsFilter = ref(false);
       const showPendingReviewsFilter = ref(false);
@@ -53,19 +62,15 @@
       const sortDropdownOpen = ref(false);
       const pageSizeDropdownOpen = ref(false);
 
-      // [NEW] User Likes State
       const userLikes = ref(new Set());
 
-      // [NEW] 성능 개선을 위한 캐싱 상태
       const myReviewedRestaurantIds = ref(new Set());
       const menuMap = ref({}); // [NEW] 메뉴 캐싱 상태 추가
 
-      // --- Modal & Restaurant CRUD State ---
       const modalOpen = ref(false);
       const modalMode = ref('view');
       const selectedRestaurant = ref({});
 
-      // [수정] restaurantForm에 menus 배열과 is_signature 관련 필드 추가
       const restaurantForm = ref({ id: '', name: '', category: '', tags: [], signature_menu: '', price: '', tagInput: '', menus: [] });
 
       const duplicateList = ref([]);
@@ -178,8 +183,8 @@
 
             if (sort.value.field === 'rate') {
               valA = Number(a.rate || 0); valB = Number(b.rate || 0);
-            } else if (sort.value.field === 'reviewCount') {
-              valA = Number(a.reviewCount || 0); valB = Number(b.reviewCount || 0);
+            } else if (sort.value.field === 'review_count') {
+              valA = Number(a.review_count || 0); valB = Number(b.review_count || 0);
             } else if (sort.value.field === 'like_count') {
               valA = Number(a.like_count || 0); valB = Number(b.like_count || 0);
             } else if (sort.value.field === 'price') { // [NEW] 가격순 정렬 (숫자 비교)
@@ -224,18 +229,6 @@
         if (isLoading.value) return null;
         const count = userReviewCount.value;
 
-        // 1. 랭크 티어 정의 (기존 기준 유지)
-        const RANK_TIERS = [
-          { name: '아이언', min: 0, max: 0, nextMin: 1, icon: 'ph ph-crown-simple', color: 'text-gray-500' },
-          { name: '브론즈', min: 1, max: 9, nextMin: 10, icon: 'ph-fill ph-crown-simple', color: 'text-amber-700' },
-          { name: '실버', min: 10, max: 29, nextMin: 30, icon: 'ph-fill ph-crown-simple', color: 'text-gray-400' },
-          { name: '골드', min: 30, max: 49, nextMin: 50, icon: 'ph-fill ph-crown-simple', color: 'text-yellow-500' },
-          { name: '플래티넘', min: 50, max: 69, nextMin: 70, icon: 'ph-fill ph-crown', color: 'text-sky-400' },
-          { name: '다이아몬드', min: 70, max: 99, nextMin: 100, icon: 'ph-fill ph-diamond', color: 'text-blue-500' },
-          { name: '블랙 다이아몬드', min: 100, max: Infinity, nextMin: 100, icon: 'ph-fill ph-diamond', color: 'text-gray-900 bg-gray-100' },
-        ];
-
-        // 2. 현재 등급 정보 찾기
         const currentRank = RANK_TIERS.slice().reverse().find(tier => count >= tier.min);
 
         if (!currentRank) {
@@ -244,7 +237,6 @@
 
         const isMaxRank = currentRank.max === Infinity;
 
-        // 3. 진척도 및 목표치 계산
         let percentageValue = 0;
         let targetCount = currentRank.nextMin;
         let nextRankName = '';
@@ -261,7 +253,6 @@
           }
           percentageValue = Math.min(99, Math.floor(percentageValue));
 
-          // [NEW] 다음 랭크 정보 찾기
           const nextRankIndex = RANK_TIERS.findIndex(tier => tier.min === currentRank.nextMin);
           if (nextRankIndex !== -1) {
             nextRankName = RANK_TIERS[nextRankIndex].name;
@@ -403,7 +394,7 @@
         const sum = filteredReviews.reduce((acc, curr) => acc + Number(curr.rate), 0);
         const avg = count > 0 ? parseFloat((sum / count).toFixed(1)) : 0;
 
-        rest.reviewCount = count;
+        rest.review_count = count;
         rest.rate = avg;
         rest.latestReview = filteredReviews[0]?.comment || null;
         rest.latestReviewRate = filteredReviews[0]?.rate || null;
@@ -438,7 +429,7 @@
           price: serverData.price, // [수정] 서버에서 온 평균 가격 사용
           rate: existingRest ? existingRest.rate : 0,
           like_count: existingRest ? existingRest.like_count : 0,
-          reviewCount: existingRest ? existingRest.reviewCount : 0,
+          review_count: existingRest ? existingRest.review_count : 0,
           // enabled, created_at, updated_at 필드는 서버에서 관리된다고 가정
         };
 
@@ -467,7 +458,7 @@
       const onAlertConfirm = () => { if (alertState.value.resolve) alertState.value.resolve(true); alertState.value.visible = false; };
       const onAlertCancel = () => { if (alertState.value.resolve) alertState.value.resolve(false); alertState.value.visible = false; };
 
-      const startLoadingAnimation = (intervalTime = 3000) => { // 3초 간격 기본값 설정
+      const startLoadingAnimation = (intervalTime = 5000) => {
         if (loadingInterval.value) return;
 
         const phraseLength = LOADING_PHRASES.length;
@@ -597,7 +588,7 @@
 
         restaurants.value.forEach(rest => {
           const myReviews = allReviews.value.filter(r => String(r.restaurant_id) === String(rest.id));
-          rest.reviewCount = myReviews.length;
+          rest.review_count = myReviews.length;
           if (myReviews.length > 0) {
             // 최신 리뷰를 찾음 (이미 created_at 기준으로 정렬되어 있다고 가정)
             rest.latestReview = myReviews[0].comment;
@@ -749,7 +740,7 @@
         modalMode.value = 'create';
         restaurantForm.value = {
           id: '', name: '', category: '', tags: [], signature_menu: '', price: '', tagInput: '',
-          menus: [{ name: '', price: '', is_signature: true }] // [NEW] 메뉴 초기값 설정
+          menus: [{ name: '', price: '', is_signature: false }]
         };
         duplicateList.value = [];
         modalOpen.value = true;
@@ -761,7 +752,6 @@
         const r = selectedRestaurant.value;
         const cachedMenus = menuMap.value[r.id] || [];
 
-        // [NEW] 메뉴 데이터 주입 (is_signature 포함)
         restaurantForm.value = {
           id: r.id, name: r.name, category: r.category, tags: [...r.tags], signature_menu: r.signature_menu, price: r.price, tagInput: '',
           menus: cachedMenus.map(m => ({ name: m.name, price: m.price, is_signature: m.is_signature || false }))
@@ -840,7 +830,6 @@
 
         console.log('DEBUG PAYLOAD [originMenus]:', restaurantForm.value.menus);
 
-        // [NEW] 메뉴 데이터 전처리 및 payload 구성
         const cleanMenus = restaurantForm.value.menus
           .filter(m => m.name && m.name.trim() !== '')
           .map(m => ({
@@ -850,7 +839,6 @@
           }));
         console.log('DEBUG PAYLOAD [cleanMenus]:', cleanMenus);
 
-        // [NEW] payload에 menus 필드 추가
         const payload = { ...restaurantForm.value, menus: cleanMenus };
 
         if (Object.prototype.hasOwnProperty.call(payload, 'signature_menu')) {

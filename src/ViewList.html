@@ -211,7 +211,7 @@
                 <button @click.stop="toggleSortDropdown"
                   class="flex items-center justify-between gap-1 w-28 border rounded p-1 text-sm bg-white hover:bg-gray-100 transition rounded-r-none border-r-0">
                   <span class="truncate flex-1 text-center">{{ sort.field === 'name' ? '상호명' : sort.field === 'category'
-                    ? '카테고리' : sort.field === 'rate' ? '평점' : sort.field === 'review_count' ? '리뷰' : sort.field ===
+                    ? '카테고리' : sort.field === 'rate' ? '평점' : sort.field === 'review_count' ? '리뷰수' : sort.field ===
                     'like_count' ? '찜하기' : sort.field === 'price' ? '가격대' : '상호명' }}</span>
                   <i
                     :class="['ph ph-caret-down text-gray-500 transition-transform', sortDropdownOpen ? 'rotate-180' : '']"></i>
@@ -226,7 +226,7 @@
                   <button @click="setSort('rate'); toggleSortDropdown()"
                     class="block w-full text-center px-3 py-2 hover:bg-orange-50">평점</button>
                   <button @click="setSort('review_count'); toggleSortDropdown()"
-                    class="block w-full text-center px-3 py-2 hover:bg-orange-50">리뷰</button>
+                    class="block w-full text-center px-3 py-2 hover:bg-orange-50">리뷰수</button>
                   <button @click="setSort('like_count'); toggleSortDropdown()"
                     class="block w-full text-center px-3 py-2 hover:bg-orange-50">찜하기</button>
                   <button @click="setSort('price'); toggleSortDropdown()"
@@ -284,7 +284,7 @@
                   <div class="col-span-1 cursor-pointer hover:text-orange-600 flex items-center justify-center gap-1"
                     @click="setSort('rate')">평점 <i :class="getSortIcon('rate')"></i></div>
                   <div class="col-span-1 cursor-pointer hover:text-orange-600 flex items-center justify-center gap-1"
-                    @click="setSort('review_count')">리뷰 <i :class="getSortIcon('review_count')"></i></div>
+                    @click="setSort('review_count')">리뷰수 <i :class="getSortIcon('review_count')"></i></div>
                   <div class="col-span-1 cursor-pointer hover:text-red-500 flex items-center justify-center gap-1"
                     @click="setSort('like_count')">
                     <i class="ph-fill ph-heart text-red-400"></i> <i :class="getSortIcon('like_count')"></i>

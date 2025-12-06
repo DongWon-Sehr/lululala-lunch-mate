@@ -359,13 +359,7 @@
       });
 
       const isMobile = computed(() => {
-        // 뷰포트 너비가 768px 미만(Tailwind md breakpoint)이거나 
-        // 터치 이벤트가 지원되는 경우 (모바일 브라우저)
-        if (typeof window !== 'undefined') {
-          const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-          return window.innerWidth < 768 || isTouchDevice;
-        }
-        return false;
+        return windowWidth.value < 768;
       });
 
       // --- Internal Helpers (Data Sync) ---

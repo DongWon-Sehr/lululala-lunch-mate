@@ -89,10 +89,18 @@ function apiGetCurrentUser() {
     // UserService.getCurrentUser()를 호출하는 것이 정석이나,
     // 고객님께서 제공해주신 코드 블록을 유지합니다.
     const email = Session.getActiveUser().getEmail();
-    // [참고] Config.gs의 Config 객체 접근 필요
+    const user = AdminDirectory.Users.get(email, {
+      viewType: "domain_public"
+    });
+
+    let profileUrl;
+    if (user.thumbnailPhotoUrl) {
+      profileUrl = user.thumbnailPhotoUrl;
+    }
+
     const isAdmin = Config.ADMIN_EMAILS.includes(email);
-    // [참고] Util.response가 정의되어 있다고 가정
-    return Util.response(true, { email: email, isAdmin: isAdmin }, null);
+
+    return Util.response(true, { email: email, profileUrl: profileUrl, isAdmin: isAdmin }, null);
   });
 }
 

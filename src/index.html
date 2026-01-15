@@ -1,45 +1,53 @@
 <!DOCTYPE html>
 <html>
+  <head>
+    <base target="_top" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <?!= include('stylesheet'); ?>
+  </head>
 
-<head>
-  <base target="_top">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-  <script src="https://unpkg.com/@phosphor-icons/web"></script>
-  <?!= include('stylesheet'); ?>
-</head>
+  <body class="bg-gray-50 text-gray-800 min-h-screen overflow-y-auto">
+    <div
+      id="app"
+      class="min-h-screen flex flex-col relative"
+      data-app-url="<?!= BASE_WEBAPP_URL ?>"
+    >
+      <?!= include('LayoutHeader'); ?>
 
-<body class="bg-gray-50 text-gray-800 min-h-screen overflow-y-auto">
-  <div id="app" class="min-h-screen flex flex-col relative" data-app-url="<?!= BASE_WEBAPP_URL ?>">
+      <button
+        @click="openAddRestaurantModal"
+        v-show="currentTab === 'list' && !isLoading"
+        class="fixed bottom-6 right-6 bg-orange-500 bg-opacity-[0.65] hover:bg-opacity-100 text-white w-12 h-12 md:w-14 md:h-14 rounded-full shadow-lg z-30 transition-all transform hover:scale-110 flex items-center justify-center group"
+        title="식당 추가"
+      >
+        <i
+          class="ph-bold ph-plus text-xl md:text-2xl group-hover:rotate-90 transition-transform"
+        ></i>
+      </button>
 
-    <?!= include('LayoutHeader'); ?>
+      <main class="flex-1 relative">
+        <?!= include('ViewList'); ?>
+        <?!= include('ViewWheel'); ?>
+        <?!= include('ViewMyPage'); ?>
+      </main>
 
-    <button @click="openAddRestaurantModal" v-show="currentTab === 'list' && !isLoading"
-      class="fixed bottom-6 right-6 bg-orange-500 bg-opacity-[0.65] hover:bg-opacity-100 text-white w-12 h-12 md:w-14 md:h-14 rounded-full shadow-lg z-30 transition-all transform hover:scale-110 flex items-center justify-center group"
-      title="식당 추가">
-      <i class="ph-bold ph-plus text-xl md:text-2xl group-hover:rotate-90 transition-transform"></i>
-    </button>
+      <?!= include('Tooltip'); ?>
 
-    <main class="flex-1 relative">
-      <?!= include('ViewList'); ?>
-      <?!= include('ViewWheel'); ?>
-      <?!= include('ViewMyPage'); ?>
-    </main>
+      <footer
+        class="p-4 bg-gray-200 text-gray-600 text-xs font-bold text-center border-t"
+      >
+        Powered By 🐟
+      </footer>
 
-    <?!= include('Tooltip'); ?>
-
-    <footer class="p-4 bg-gray-200 text-gray-600 text-xs font-bold text-center border-t">
-      Powered By 🐟
-    </footer>
-
-    <div>
-      <?!= include('ModalRestaurant'); ?>
+      <div>
+        <?!= include('ModalRestaurant'); ?>
+      </div>
+      <div>
+        <?!= include('ModalAlert'); ?>
+      </div>
     </div>
-    <div>
-      <?!= include('ModalAlert'); ?>
-    </div>
-  </div>
-</body>
-<?!= include('javascript'); ?>
-
+  </body>
+  <?!= include('javascript'); ?>
 </html>

@@ -315,3 +315,17 @@ function testMigrationReviewCount() {
     }
   }
 }
+
+function testGetUser() {
+  const email = Session.getActiveUser().getEmail();
+  const user = AdminDirectory.Users.get(email, {
+    viewType: "domain_public"
+  });
+
+  if (user.thumbnailPhotoUrl) {
+    console.log("Profile image URL:", user.thumbnailPhotoUrl);
+    return user.thumbnailPhotoUrl;
+  }
+
+  return null;
+}

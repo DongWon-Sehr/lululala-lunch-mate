@@ -30,6 +30,14 @@
 
       const windowWidth = ref(window.innerWidth);
       const currentUser = ref({ email: "", profileUrl: "", isAdmin: false });
+      const allUsers = ref([]); // [NEW] 전체 회사 인원 리스트 (w/ counts)
+      const lunchMateConfig = ref({ mode: "size", value: 4, mixMode: "dev" }); // [NEW] 조 편성 설정 (기본: 개발 좋아)
+      const selectedUserEmails = ref(new Set()); // [NEW] 선택된 유저 이메일
+      const customUsersMap = ref({}); // [NEW] 부서별 커스텀 추가 유저: { "부서명": ["이름1", "이름2"] }
+      const lunchMateTeams = ref([]); // [NEW] 최종 편성 결과 (애니메이션 완료 후 전체 표시용)
+      const displayTeams = ref([]); // [NEW] 화면에 표시되는 조 (애니메이션 중 하나씩 채워짐)
+      const isTeamAnimating = ref(false); // [NEW] 조 편성 애니메이션 진행 중
+      const currentAnimatingUser = ref(null); // [NEW] 현재 날아가는 유저 정보
       const isLoading = ref(true);
       const loadingText = ref(
         "사무실 근처 맛집 정보와 솔직 리뷰 불러오는 중... 🚀"
@@ -122,7 +130,7 @@
       const showPendingReviewsFilter = ref(false);
       const searchQuery = ref("");
 
-      const sort = ref({ field: "name", order: "asc" });
+      const sort = ref({ field: "like_count", order: "desc" });
 
       // [추가] 모바일/데스크탑 드롭다운 제어 상태
       const sortDropdownOpen = ref(false);
@@ -197,6 +205,16 @@
       let pinDamping = 0.94;
       let pinKick = 0.15;
       let pinDrag = 0.8;
+
+      // [NEW] 기본 제외 인원 리스트 (이름 기준)
+      const DEFAULT_EXCLUDED_NAMES = [
+        "Mila Kim",
+        "June Park",
+        "Johan Kim",
+        "Dami Kim",
+        "Support NEW ID",
+        "Giyong Kim"
+      ];
 
       // --- Computed ---
       const uniqueCategories = computed(() => {
@@ -314,6 +332,36 @@
         return restaurants.value.filter((r) =>
           r.name.replace(/\s/g, "").toLowerCase().includes(term)
         );
+      });
+
+      const selectedUsers = computed(() => {
+        return allUsers.value.filter((u) => selectedUserEmails.value.has(u.email));
+      });
+
+      // [NEW] 부서별 유저 그룹핑 (커스텀 유저 포함)
+      const usersByDepartment = computed(() => {
+        const groups = {};
+        
+        // 1. 실제 유저 그룹핑
+        allUsers.value.forEach(u => {
+          // 백엔드에서 이미 필터링 및 "Not Assigned" 처리를 했으므로 그대로 사용
+          const deptName = u.department || 'Not Assigned';
+          
+          if (!groups[deptName]) groups[deptName] = { users: [], custom: [] };
+          groups[deptName].users.push(u);
+        });
+
+        // 2. 커스텀 유저 반영
+        Object.keys(customUsersMap.value).forEach(dept => {
+           if (!groups[dept]) groups[dept] = { users: [], custom: [] };
+           groups[dept].custom = customUsersMap.value[dept];
+        });
+
+        // 3. 정렬 (키 기준)
+        return Object.keys(groups).sort().reduce((acc, key) => {
+          acc[key] = groups[key];
+          return acc;
+        }, {});
       });
 
       const userId = computed(() => {
@@ -761,12 +809,36 @@
             .apiGetAllMenus();
         });
 
+        // 6. All Users Data Promise (LOGGING ADDED)
+        const allUsersPromise = new Promise((resolve) => {
+          google.script.run
+            .withSuccessHandler((res) => {
+              console.log("API Response [apiGetAllUsers]:", res);
+              if (res && res.success) {
+                allUsers.value = res.data;
+                // 특정 인원을 제외하고 초기 선택 상태 설정
+                const initialSelected = res.data
+                  .filter(u => !DEFAULT_EXCLUDED_NAMES.includes(u.name))
+                  .map(u => u.email);
+                selectedUserEmails.value = new Set(initialSelected);
+              } else {
+                console.warn(
+                  "사용자 전체 목록 로드 실패 (권한 문제일 수 있음):",
+                  res?.message
+                );
+              }
+              resolve();
+            })
+            .apiGetAllUsers();
+        });
+
         Promise.all([
           userPromise,
           mainDataPromise,
           reviewDataPromise,
           likesPromise,
           menuDataPromise,
+          allUsersPromise,
         ]).then(([u, m, r, l]) => {
           stopLoadingAnimation();
           isLoading.value = false;
@@ -1681,6 +1753,221 @@
         showKebabMenu.value = !showKebabMenu.value;
       };
 
+      // --- Lunch Mate Methods ---
+      const toggleUserSelection = (user) => {
+        if (selectedUserEmails.value.has(user.email)) {
+          selectedUserEmails.value.delete(user.email);
+        } else {
+          selectedUserEmails.value.add(user.email);
+        }
+      };
+      
+      const toggleAllInDept = (deptName, userList) => {
+        const allSelected = userList.every(u => selectedUserEmails.value.has(u.email));
+        userList.forEach(u => {
+          if (allSelected) selectedUserEmails.value.delete(u.email);
+          else selectedUserEmails.value.add(u.email);
+        });
+      };
+
+      const addCustomUser = (deptName, e) => {
+        if (isComposing.value) return; // [FIX] IME 입력 중 중복 추가 방지
+        const val = e.target.value.trim();
+        if ((e.key === 'Enter' || e.key === ' ') && val) {
+          e.preventDefault();
+           if (!customUsersMap.value[deptName]) customUsersMap.value[deptName] = [];
+           // 중복 방지 (선택 사항)
+           if (!customUsersMap.value[deptName].includes(val)) {
+             customUsersMap.value[deptName].push(val);
+           }
+           e.target.value = '';
+        }
+      };
+
+      const removeCustomUser = (deptName, index) => {
+        if (customUsersMap.value[deptName]) {
+          customUsersMap.value[deptName].splice(index, 1);
+        }
+      };
+
+      const isUserSelected = (user) => {
+        return selectedUserEmails.value.has(user.email);
+      };
+
+      // [Helper] 배열 셔플 함수
+      const shuffleArray = (array) => {
+        for (let i = array.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+      };
+
+      // [Helper] 애니메이션용 지연 함수
+      const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+      const generateTeams = async () => {
+        if (isTeamAnimating.value) return; // 애니메이션 중 중복 실행 방지
+
+        // 1. 참여 인원 수집 (선택된 유저 + 커스텀 유저)
+        let pool = [...selectedUsers.value];
+        
+        // 커스텀 유저도 pool에 추가 (가상의 유저 객체 생성)
+        Object.keys(customUsersMap.value).forEach(dept => {
+           customUsersMap.value[dept].forEach(name => {
+             pool.push({
+               name: name,
+               email: `custom-${Math.random().toString(36).substr(2, 9)}`, // 임시 ID
+               department: dept,
+               isCustom: true
+             });
+           });
+        });
+
+        if (pool.length === 0) {
+          showAlert("참여 인원을 선택하거나 추가해주세요.");
+          return;
+        }
+
+        // [Optimazation] 이미지 프리로딩 (애니메이션 딜레이 감소)
+        pool.forEach(u => {
+          if (u.thumbnailPhotoUrl) {
+            const img = new Image();
+            img.src = u.thumbnailPhotoUrl;
+          }
+        });
+
+        // --- 로직 계산 (기존과 동일) ---
+        let teams = [];
+        const config = lunchMateConfig.value;
+        const val = config.value; // 조 개수 또는 인원 수
+
+        // --- 섞기 로직 분기 ---
+        if (config.mixMode === 'dev') {
+          // [개발 좋아 모드] 개발팀 vs 비개발팀 분류
+          const devKeywords = ['Solution Development', 'Dev', '개발'];
+          const devs = [];
+          const others = [];
+
+          pool.forEach(u => {
+            const dept = u.department || '';
+            const isDev = devKeywords.some(k => dept.includes(k));
+            if (isDev) devs.push(u);
+            else others.push(u);
+          });
+          
+          shuffleArray(devs);
+          shuffleArray(others);
+
+          // 조 개수 먼저 계산
+          let teamCount = 0;
+          if (config.mode === 'count') {
+             teamCount = Math.max(1, Math.min(val, pool.length));
+          } else {
+             teamCount = Math.ceil(pool.length / Math.max(1, val));
+          }
+          
+          for(let i=0; i<teamCount; i++) teams.push([]);
+
+          // 지그재그 배정 (개발팀 먼저, 그 다음 비개발팀)
+          let currentTeamIdx = 0;
+          
+          // 개발팀 배정
+          devs.forEach(u => {
+            teams[currentTeamIdx].push(u);
+            currentTeamIdx = (currentTeamIdx + 1) % teamCount;
+          });
+          
+          // 비개발팀 배정 (현재 인덱스부터 이어서)
+          others.forEach(u => {
+            teams[currentTeamIdx].push(u);
+            currentTeamIdx = (currentTeamIdx + 1) % teamCount;
+          });
+          
+          // 각 팀 내부 셔플 (순서 섞기)
+          teams.forEach(t => shuffleArray(t));
+
+        } else {
+          // [전체 섞기 모드] (기존 로직)
+          shuffleArray(pool);
+          
+          if (config.mode === "count") {
+            const teamCount = Math.max(1, Math.min(val, pool.length));
+            for (let i = 0; i < teamCount; i++) teams.push([]);
+            pool.forEach((user, index) => {
+              teams[index % teamCount].push(user);
+            });
+          } else {
+            const teamSize = Math.max(1, val);
+            for (let i = 0; i < pool.length; i += teamSize) {
+              teams.push(pool.slice(i, i + teamSize));
+            }
+          }
+        }
+
+        // --- 애니메이션 시작 ---
+        isTeamAnimating.value = true;
+        lunchMateTeams.value = teams; // 최종 결과 저장
+        
+        // 화면 표시용 빈 팀 생성
+        displayTeams.value = teams.map(() => []);
+
+        // 애니메이션 큐 생성 (유저 + 배정된 팀 인덱스)
+        const animationQueue = [];
+        teams.forEach((team, teamIndex) => {
+          team.forEach(user => {
+            animationQueue.push({ user, teamIndex });
+          });
+        });
+
+        // 큐를 섞어서 랜덤하게 날아가도록 함 (재미 요소)
+        shuffleArray(animationQueue);
+
+        // 스크롤을 결과 섹션으로 이동
+        nextTick(() => {
+           const resultSection = document.getElementById('lunchMateResult');
+           if(resultSection) resultSection.scrollIntoView({ behavior: 'smooth' });
+        });
+
+        // 한 명씩 처리
+        for (const item of animationQueue) {
+          // 1. 중앙에 이름표 등장
+          currentAnimatingUser.value = item.user;
+          
+          // 등장 + 대기 시간
+          await delay(400); 
+
+          // 2. 조에 추가
+          displayTeams.value[item.teamIndex].push(item.user);
+          
+          // 3. 이름표 사라짐 (다음 사람 준비)
+          currentAnimatingUser.value = null;
+          
+          // 4. 간격 (사람 간)
+          await delay(100); 
+        }
+
+        isTeamAnimating.value = false;
+      };
+
+      const copyTeamResult = () => {
+        if (lunchMateTeams.value.length === 0) return;
+
+        let text = "🍴 [누구랑 먹지?] 조 편성 결과\n\n";
+        lunchMateTeams.value.forEach((team, idx) => {
+          text += `📍 ${idx + 1}조: ${team.map((u) => u.name).join(", ")}\n`;
+        });
+
+        const tempInput = document.createElement("textarea");
+        tempInput.value = text;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand("copy");
+        document.body.removeChild(tempInput);
+
+        showAlert("편성 결과가 클립보드에 복사되었습니다.", "복사 완료");
+      };
+
       const handleMenuPriceInput = (menuItem, newFormattedValue) => {
         const cleanedValue = cleanNumber(newFormattedValue);
         menuItem.price = parseInt(cleanedValue) || 0;
@@ -1917,6 +2204,23 @@
         formatDateTime,
         isMobile,
         loadingText,
+        allUsers,
+        lunchMateConfig,
+        selectedUserEmails,
+        lunchMateTeams,
+        displayTeams,
+        isTeamAnimating,
+        currentAnimatingUser,
+        selectedUsers,
+        usersByDepartment,
+        customUsersMap,
+        toggleUserSelection,
+        toggleAllInDept,
+        addCustomUser,
+        removeCustomUser,
+        isUserSelected,
+        generateTeams,
+        copyTeamResult,
       };
     },
   }).mount("#app");

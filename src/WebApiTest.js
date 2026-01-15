@@ -329,3 +329,20 @@ function testGetUser() {
 
   return null;
 }
+
+// 3. 전체 사용자 목록 조회 테스트
+function testGetAllUsers() {
+  Logger.log('--- 전체 사용자 목록 조회 테스트 시작 ---');
+  const result = apiGetAllUsers();
+  Logger.log('성공 여부: ' + result.success);
+  if (result.success) {
+    Logger.log('조회된 사용자 수: ' + result.data.length);
+    if (result.data.length > 0) {
+      const sample = result.data[0];
+      Logger.log('사용자 샘플: ' + JSON.stringify(sample));
+      Logger.log(`샘플 유저 통계 - 리뷰: ${sample.reviewCount}, 찜: ${sample.likeCount}`);
+    }
+  } else {
+    Logger.log('에러 메시지: ' + result.message);
+  }
+}

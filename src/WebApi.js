@@ -83,25 +83,11 @@ function _executeApi(apiName, action, params = null) {
 // ==========================================
 
 function apiGetCurrentUser() {
-  return _executeApi('apiGetCurrentUser', () => {
-    // [참고] WebApi.gs에는 Session이 정의되어 있지 않으므로 
-    // 실제 실행을 위해서는 UserService.gs의 메서드를 호출해야 함.
-    // UserService.getCurrentUser()를 호출하는 것이 정석이나,
-    // 고객님께서 제공해주신 코드 블록을 유지합니다.
-    const email = Session.getActiveUser().getEmail();
-    const user = AdminDirectory.Users.get(email, {
-      viewType: "domain_public"
-    });
+  return _executeApi('apiGetCurrentUser', () => UserService.getCurrentUser());
+}
 
-    let profileUrl;
-    if (user.thumbnailPhotoUrl) {
-      profileUrl = user.thumbnailPhotoUrl;
-    }
-
-    const isAdmin = Config.ADMIN_EMAILS.includes(email);
-
-    return Util.response(true, { email: email, profileUrl: profileUrl, isAdmin: isAdmin }, null);
-  });
+function apiGetAllUsers() {
+  return _executeApi('apiGetAllUsers', () => UserService.getAllUsers());
 }
 
 // ==========================================

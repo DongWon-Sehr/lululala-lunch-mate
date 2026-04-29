@@ -235,18 +235,31 @@
       };
 
       const addAdminEmail = async () => {
-        const emailToAdd = newAdminEmail.value.trim();
+        const emailToAdd = newAdminEmail.value.trim().toLowerCase();
         if (!emailToAdd) {
           showAlert("추가할 이메일을 입력해주세요.", "입력 오류");
           return;
         }
-        if (adminEmailsList.value.includes(emailToAdd)) {
+
+        // 이메일 형식 검사
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(emailToAdd)) {
+          showAlert("유효한 이메일 형식이 아닙니다.", "입력 오류");
+          return;
+        }
+
+        // 이미 등록된 어드민인지 체크
+        if (adminEmailsList.value.some(e => e.toLowerCase() === emailToAdd)) {
           showAlert("이미 등록된 관리자 이메일입니다.", "오류");
           return;
         }
 
-        const confirmed = await showConfirm(`${emailToAdd} 관리자를 추가하시겠습니까?`);
-        if (!confirmed) return;
+        // 실제 존재하는 사용자인지 체크 (오타 방지)
+        const userExists = allUsers.value.some(u => u.email.toLowerCase() === emailToAdd);
+        if (!userExists) {
+          const confirmed = await showConfirm(`사용자 목록에 존재하지 않는 이메일(${emailToAdd})입니다. 그래도 추가하시겠습니까?`, "사용자 확인");
+          if (!confirmed) return;
+        }
 
         // Optimistic UI
         const previousList = [...adminEmailsList.value];
@@ -294,13 +307,21 @@
       };
 
       const addAdminGuest = () => {
-        if (!newGuestForm.value.name || !newGuestForm.value.email) {
+        const guestEmail = newGuestForm.value.email.trim().toLowerCase();
+        if (!newGuestForm.value.name || !guestEmail) {
           showAlert("이름과 이메일을 입력해주세요.", "입력 오류");
           return;
         }
+
+        // 이메일 형식 검사
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(guestEmail)) {
+          showAlert("유효한 이메일 형식이 아닙니다.", "입력 오류");
+          return;
+        }
         
-        const newGuest = { ...newGuestForm.value };
-        const existingGuest = allUsers.value.find(u => u.email === newGuest.email);
+        const newGuest = { ...newGuestForm.value, email: guestEmail };
+        const existingGuest = allUsers.value.find(u => u.email.toLowerCase() === guestEmail);
         if (existingGuest) {
           showAlert("이미 등록된 이메일입니다.", "오류");
           return;
@@ -387,14 +408,30 @@
       };
 
       const addExcludedEmail = async () => {
-        const emailToAdd = newExcludedEmail.value.trim();
+        const emailToAdd = newExcludedEmail.value.trim().toLowerCase();
         if (!emailToAdd) {
           showAlert("추가할 이메일을 입력해주세요.", "입력 오류");
           return;
         }
-        if (excludedEmailsList.value.includes(emailToAdd)) {
+
+        // 이메일 형식 검사
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(emailToAdd)) {
+          showAlert("유효한 이메일 형식이 아닙니다.", "입력 오류");
+          return;
+        }
+
+        // 이미 등록된 제외 인원인지 체크
+        if (excludedEmailsList.value.some(e => e.toLowerCase() === emailToAdd)) {
           showAlert("이미 등록된 이메일입니다.", "오류");
           return;
+        }
+
+        // 실제 존재하는 사용자인지 체크 (오타 방지)
+        const userExists = allUsers.value.some(u => u.email.toLowerCase() === emailToAdd);
+        if (!userExists) {
+          const confirmed = await showConfirm(`사용자 목록에 존재하지 않는 이메일(${emailToAdd})입니다. 그래도 추가하시겠습니까?`, "사용자 확인");
+          if (!confirmed) return;
         }
 
         // Optimistic UI

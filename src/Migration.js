@@ -26,10 +26,13 @@ const Migration = {
         'created_at', 'updated_at'
       ],
       'admin': [
-        'email'
+        'id', 'email', 'created_at'
       ],
       'guest': [
-        'name', 'email', 'department'
+        'id', 'name', 'email', 'department', 'created_at'
+      ],
+      'excluded': [
+        'id', 'email', 'created_at'
       ]
     };
 

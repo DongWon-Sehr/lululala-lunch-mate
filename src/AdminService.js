@@ -18,8 +18,9 @@ const AdminService = {
     }
     
     if (emails.length > 0) {
-      const rows = emails.map(email => [email]);
-      sheet.getRange(2, 1, rows.length, 1).setValues(rows);
+      const now = new Date().toISOString();
+      const rows = emails.map(email => [Util.getUuid(), email, now]);
+      sheet.getRange(2, 1, rows.length, 3).setValues(rows);
     }
     return Util.response(true, this.getAdminEmails().data, "관리자 권한이 저장되었습니다.");
   },
@@ -35,14 +36,16 @@ const AdminService = {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('guest');
     if (!sheet) return Util.response(false, null, "guest 시트가 존재하지 않습니다.");
 
-    // 중복 체크
-    const data = sheet.getDataRange().getValues();
-    for(let i=1; i<data.length; i++) {
-      if(data[i][1] === guest.email) {
-        return Util.response(false, null, "이미 등록된 게스트입니다.");
-      }
+    // 중복 체크 (Util.getSheetData 활용하여 안전하게 검사)
+    const existingGuests = Util.getSheetData('guest') || [];
+    if (existingGuests.some(g => g.email === guest.email)) {
+      return Util.response(false, null, "이미 등록된 게스트입니다.");
     }
-    sheet.appendRow([guest.name, guest.email, guest.department || 'Guest']);
+    
+    const id = Util.getUuid();
+    const createdAt = new Date().toISOString();
+    
+    sheet.appendRow([id, guest.name, guest.email, guest.department || 'Guest', createdAt]);
     return Util.response(true, this.getGuests().data, "게스트가 추가되었습니다.");
   },
 
@@ -51,12 +54,45 @@ const AdminService = {
     if (!sheet) return Util.response(false, null, "guest 시트가 존재하지 않습니다.");
 
     const data = sheet.getDataRange().getValues();
+    if (data.length <= 1) return Util.response(false, null, "게스트를 찾을 수 없습니다.");
+    
+    const headers = data[0];
+    const emailIndex = headers.indexOf('email');
+    
+    if (emailIndex === -1) return Util.response(false, null, "데이터 구조 오류(email 컬럼 없음).");
+
     for (let i = 1; i < data.length; i++) {
-      if (data[i][1] === email) {
+      if (data[i][emailIndex] === email) {
         sheet.deleteRow(i + 1);
         return Util.response(true, this.getGuests().data, "게스트가 삭제되었습니다.");
       }
     }
     return Util.response(false, null, "게스트를 찾을 수 없습니다.");
+  },
+
+  getExcludedEmails: function() {
+    const data = Util.getSheetData('excluded') || [];
+    let excludedEmails = data.map(row => row.email).filter(e => e);
+    
+    return Util.response(true, [...new Set(excludedEmails)], "조회 완료");
+  },
+
+  saveExcludedEmails: function(emails) {
+    if (!Array.isArray(emails)) {
+      return Util.response(false, null, "유효하지 않은 이메일 목록입니다.");
+    }
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('excluded');
+    if (!sheet) return Util.response(false, null, "excluded 시트가 존재하지 않습니다.");
+
+    if (sheet.getLastRow() > 1) {
+      sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
+    }
+    
+    if (emails.length > 0) {
+      const now = new Date().toISOString();
+      const rows = emails.map(email => [Util.getUuid(), email, now]);
+      sheet.getRange(2, 1, rows.length, 3).setValues(rows);
+    }
+    return Util.response(true, this.getExcludedEmails().data, "기본 제외 인원이 저장되었습니다.");
   }
 };

@@ -102,6 +102,14 @@ function apiDeleteGuest(email) {
   return _executeApi('apiDeleteGuest', () => AdminService.deleteGuest(email), { email });
 }
 
+function apiGetExcludedEmails() {
+  return _executeApi('apiGetExcludedEmails', () => AdminService.getExcludedEmails());
+}
+
+function apiSaveExcludedEmails(emails) {
+  return _executeApi('apiSaveExcludedEmails', () => AdminService.saveExcludedEmails(emails), { emails });
+}
+
 // ==========================================
 // User & Auth API
 // ==========================================

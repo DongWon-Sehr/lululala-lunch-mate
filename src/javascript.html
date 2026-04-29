@@ -194,6 +194,163 @@
       const isComposing = ref(false);
 
       const myPageTab = ref("info");
+      
+      // [NEW] Admin Management
+      const adminEmailsList = ref([]);
+      const newAdminEmail = ref("");
+      const adminGuests = ref([]);
+      const newGuestForm = ref({ name: "", email: "", department: "" });
+      const isAdminLoading = ref(false);
+      const isAdminSubmitting = ref(false);
+      
+      watch(() => currentUser.value.isAdmin, (isAdmin) => {
+        if (isAdmin) {
+          loadAdminData();
+        }
+      });
+      
+      const loadAdminData = () => {
+        isAdminLoading.value = true;
+        Promise.all([
+          new Promise((resolve) => {
+            google.script.run
+              .withSuccessHandler((res) => {
+                if (res && res.success) adminEmailsList.value = res.data;
+                resolve();
+              })
+              .apiGetAdminEmails();
+          }),
+          new Promise((resolve) => {
+            google.script.run
+              .withSuccessHandler((res) => {
+                if (res && res.success) adminGuests.value = res.data;
+                resolve();
+              })
+              .apiGetGuests();
+          })
+        ]).then(() => {
+          isAdminLoading.value = false;
+        });
+      };
+
+      const addAdminEmail = async () => {
+        const emailToAdd = newAdminEmail.value.trim();
+        if (!emailToAdd) {
+          showAlert("추가할 이메일을 입력해주세요.", "입력 오류");
+          return;
+        }
+        if (adminEmailsList.value.includes(emailToAdd)) {
+          showAlert("이미 등록된 관리자 이메일입니다.", "오류");
+          return;
+        }
+
+        const confirmed = await showConfirm(`${emailToAdd} 관리자를 추가하시겠습니까?`);
+        if (!confirmed) return;
+
+        isAdminSubmitting.value = true;
+        
+        const newEmailsList = [...adminEmailsList.value, emailToAdd];
+        
+        google.script.run
+          .withSuccessHandler((res) => {
+            isAdminSubmitting.value = false;
+            if (res && res.success) {
+              adminEmailsList.value = newEmailsList;
+              newAdminEmail.value = "";
+              showAlert("관리자가 추가되었습니다.", "추가 완료");
+            } else {
+              showAlert("추가에 실패했습니다.", "오류");
+            }
+          })
+          .apiSaveAdminEmails(newEmailsList);
+      };
+
+      const deleteAdminEmail = async (emailToDelete) => {
+        const confirmed = await showConfirm(`${emailToDelete} 관리자를 삭제하시겠습니까?`);
+        if (!confirmed) return;
+
+        isAdminSubmitting.value = true;
+        
+        const newEmailsList = adminEmailsList.value.filter(e => e !== emailToDelete);
+        
+        google.script.run
+          .withSuccessHandler((res) => {
+            isAdminSubmitting.value = false;
+            if (res && res.success) {
+              adminEmailsList.value = newEmailsList;
+              showAlert("관리자가 삭제되었습니다.", "삭제 완료");
+            } else {
+              showAlert("삭제에 실패했습니다.", "오류");
+            }
+          })
+          .apiSaveAdminEmails(newEmailsList);
+      };
+
+      const addAdminGuest = () => {
+        if (!newGuestForm.value.name || !newGuestForm.value.email) {
+          showAlert("이름과 이메일을 입력해주세요.", "입력 오류");
+          return;
+        }
+        
+        const newGuest = { ...newGuestForm.value };
+        isAdminSubmitting.value = true;
+        
+        google.script.run
+          .withSuccessHandler((res) => {
+            isAdminSubmitting.value = false;
+            if (res && res.success) {
+              adminGuests.value = res.data;
+              
+              // 클라이언트 allUsers 배열에도 즉시 반영
+              const existingGuest = allUsers.value.find(u => u.email === newGuest.email);
+              if (!existingGuest) {
+                const addedGuest = {
+                  name: newGuest.name,
+                  email: newGuest.email,
+                  thumbnailPhotoUrl: '',
+                  department: newGuest.department || 'Guest',
+                  isGuest: true,
+                  reviewCount: 0,
+                  likeCount: 0
+                };
+                allUsers.value.push(addedGuest);
+                selectedUserEmails.value.add(addedGuest.email); // 자동 선택
+              }
+
+              newGuestForm.value = { name: "", email: "", department: "" };
+              showAlert("게스트가 성공적으로 추가되었습니다.", "추가 완료");
+            } else {
+              showAlert("게스트 추가 실패: " + (res ? res.message : ""), "오류");
+            }
+          })
+          .apiAddGuest(newGuestForm.value);
+      };
+
+      const deleteAdminGuest = async (email) => {
+        const confirmed = await showConfirm("해당 게스트를 삭제하시겠습니까?");
+        if (!confirmed) return;
+        
+        isAdminSubmitting.value = true;
+        google.script.run
+          .withSuccessHandler((res) => {
+            isAdminSubmitting.value = false;
+            if (res && res.success) {
+              adminGuests.value = res.data;
+              
+              // 클라이언트 allUsers 배열에서도 즉시 삭제
+              const index = allUsers.value.findIndex(u => u.email === email);
+              if (index !== -1) {
+                allUsers.value.splice(index, 1);
+                selectedUserEmails.value.delete(email); // 선택 목록에서도 제거
+              }
+              
+              showAlert("게스트가 성공적으로 삭제되었습니다.", "삭제 완료");
+            } else {
+              showAlert("삭제 실패: " + (res ? res.message : ""), "오류");
+            }
+          })
+          .apiDeleteGuest(email);
+      };
 
       let wheelRotation = 0;
       let wheelVelocity = 0;
@@ -2221,6 +2378,14 @@
         isUserSelected,
         generateTeams,
         copyTeamResult,
+        adminEmailsList,
+        newAdminEmail,
+        adminGuests,
+        newGuestForm,
+        addAdminEmail,
+        deleteAdminEmail,
+        addAdminGuest,
+        deleteAdminGuest,
       };
     },
   }).mount("#app");

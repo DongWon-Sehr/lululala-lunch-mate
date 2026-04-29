@@ -107,6 +107,9 @@
                     <div v-else class="w-full h-full flex items-center justify-center text-[8px] font-bold text-gray-500">{{ user.name.charAt(0) }}</div>
                   </div>
                   {{ user.name }}
+                  <span v-if="user.isGuest" class="ml-1 bg-yellow-400 text-white text-[8px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5" title="Guest">
+                    <i class="ph-fill ph-star"></i>
+                  </span>
                 </button>
                 <div v-if="group.users.length === 0" class="text-xs text-gray-400 italic py-1">해당 부서 인원 없음</div>
               </div>
@@ -144,8 +147,14 @@
         <div v-else class="w-full h-full flex items-center justify-center text-lg font-bold text-gray-500">{{ currentAnimatingUser ? currentAnimatingUser.name.charAt(0) : '' }}</div>
       </div>
       <div>
-        <div class="text-lg font-bold text-gray-900">{{ currentAnimatingUser ? currentAnimatingUser.name : '' }}</div>
-        <div class="text-xs text-gray-500">{{ currentAnimatingUser ? (currentAnimatingUser.isCustom ? 'Guest' : (currentAnimatingUser.department || 'Not Assigned')) : '' }}</div>
+        <div class="text-lg font-bold text-gray-900 flex items-center gap-1">
+          {{ currentAnimatingUser ? currentAnimatingUser.name : '' }}
+          <i v-if="currentAnimatingUser && currentAnimatingUser.isCustom" class="ph-fill ph-asterisk text-[10px] text-purple-400" title="임시 참가자"></i>
+          <span v-if="currentAnimatingUser && currentAnimatingUser.isGuest" class="bg-yellow-400 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5" title="Guest">
+            <i class="ph-fill ph-star"></i>
+          </span>
+        </div>
+        <div class="text-xs text-gray-500">{{ currentAnimatingUser ? (currentAnimatingUser.isGuest ? 'Guest' : (currentAnimatingUser.isCustom ? '임시 참가자' : (currentAnimatingUser.department || 'Not Assigned'))) : '' }}</div>
       </div>
     </div>
   </div>
@@ -188,9 +197,12 @@
               <div class="min-w-0">
                 <div class="text-sm font-bold text-gray-800 truncate flex items-center gap-1">
                   {{ user.name }}
-                  <i v-if="user.isCustom" class="ph-fill ph-asterisk text-[8px] text-purple-400" title="직접 추가된 인원"></i>
+                  <i v-if="user.isCustom" class="ph-fill ph-asterisk text-[8px] text-purple-400" title="임시 참가자"></i>
+                  <span v-if="user.isGuest" class="ml-1 bg-yellow-400 text-white text-[8px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5" title="Guest">
+                    <i class="ph-fill ph-star"></i>
+                  </span>
                 </div>
-                <div class="text-[10px] text-gray-400 truncate">{{ user.isCustom ? 'Guest' : (user.department || 'Not Assigned') }}</div>
+                <div class="text-[10px] text-gray-400 truncate">{{ user.isGuest ? 'Guest' : (user.isCustom ? '임시 참가자' : (user.department || 'Not Assigned')) }}</div>
               </div>
             </div>
           </transition-group>

@@ -6,7 +6,17 @@ const UserService = {
   getCurrentUser: function () {
     try {
       const email = Session.getActiveUser().getEmail();
-      const isAdmin = Config.ADMIN_EMAILS.includes(email);
+
+      // AdminService를 통해 DB에 저장된 관리자 확인
+      let adminEmails = [];
+      try {
+        if (typeof AdminService !== 'undefined') {
+          adminEmails = AdminService.getAdminEmails().data || [];
+        }
+      } catch (e) {
+        console.warn('AdminService 에러:', e);
+      }
+      const isAdmin = adminEmails.includes(email);
 
       let profileUrl = '';
       try {
@@ -14,6 +24,8 @@ const UserService = {
         const user = AdminDirectory.Users.get(email, { viewType: "domain_public" });
         if (user && user.thumbnailPhotoUrl) {
           profileUrl = user.thumbnailPhotoUrl;
+        } else if (user && user.thumbnailPhotoEtag) {
+           // fallback if only etag is available but no URL (unlikely but safe)
         }
       } catch (err) {
         console.warn('프로필 이미지 조회 실패 (Admin SDK 권한 또는 설정 확인 필요):', err);
@@ -47,7 +59,7 @@ const UserService = {
         });
         if (page.users && page.users.length > 0) {
           const simplifiedUsers = [];
-          
+
           page.users.forEach(u => {
             // 0. 정지된 사용자(Suspended)는 필터링 (제외)
             if (u.suspended) {
@@ -55,7 +67,7 @@ const UserService = {
             }
 
             let dept = '';
-            
+
             // 1. organizations 필드에서 department 우선 조회
             if (u.organizations && u.organizations.length > 0) {
               // primary가 true인 것 우선, 없으면 첫 번째 것
@@ -77,15 +89,37 @@ const UserService = {
               name: u.name.fullName,
               email: u.primaryEmail,
               thumbnailPhotoUrl: u.thumbnailPhotoUrl || '',
-              department: dept
+              department: dept,
+              isGuest: false
             });
           });
-          
+
           users = users.concat(simplifiedUsers);
         }
         pageToken = page.nextPageToken;
       } while (pageToken);
 
+      // [NEW] Guest 사용자 추가
+      try {
+        if (typeof AdminService !== 'undefined') {
+          const guests = AdminService.getGuests().data || [];
+          if (guests && guests.length > 0) {
+            guests.forEach(g => {
+              users.push({
+                name: g.name,
+                email: g.email,
+                thumbnailPhotoUrl: '',
+                department: g.department || 'Guest',
+                isGuest: true
+              });
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Guest 조회 실패:', e);
+      }
+
+      
       // 2. 리뷰 카운트 집계
       const reviewsRes = ReviewService.getAllReviews();
       const reviewCountMap = {};

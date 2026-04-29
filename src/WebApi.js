@@ -79,6 +79,38 @@ function _executeApi(apiName, action, params = null) {
 }
 
 // ==========================================
+// Admin API
+// ==========================================
+
+function apiGetAdminEmails() {
+  return _executeApi('apiGetAdminEmails', () => AdminService.getAdminEmails());
+}
+
+function apiSaveAdminEmails(emails) {
+  return _executeApi('apiSaveAdminEmails', () => AdminService.saveAdminEmails(emails), { emails });
+}
+
+function apiGetGuests() {
+  return _executeApi('apiGetGuests', () => AdminService.getGuests());
+}
+
+function apiAddGuest(guest) {
+  return _executeApi('apiAddGuest', () => AdminService.addGuest(guest), { guest });
+}
+
+function apiDeleteGuest(email) {
+  return _executeApi('apiDeleteGuest', () => AdminService.deleteGuest(email), { email });
+}
+
+function apiGetExcludedEmails() {
+  return _executeApi('apiGetExcludedEmails', () => AdminService.getExcludedEmails());
+}
+
+function apiSaveExcludedEmails(emails) {
+  return _executeApi('apiSaveExcludedEmails', () => AdminService.saveExcludedEmails(emails), { emails });
+}
+
+// ==========================================
 // User & Auth API
 // ==========================================
 

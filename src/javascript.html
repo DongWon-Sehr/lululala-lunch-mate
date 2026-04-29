@@ -194,6 +194,262 @@
       const isComposing = ref(false);
 
       const myPageTab = ref("info");
+      
+      // [NEW] Admin Management
+      const adminEmailsList = ref([]);
+      const newAdminEmail = ref("");
+      const adminGuests = ref([]);
+      const newGuestForm = ref({ name: "", email: "", department: "" });
+      const excludedEmailsList = ref([]);
+      const newExcludedEmail = ref("");
+      const isAdminLoading = ref(false);
+      
+      watch(() => currentUser.value.isAdmin, (isAdmin) => {
+        if (isAdmin) {
+          loadAdminData();
+        }
+      });
+      
+      const loadAdminData = () => {
+        isAdminLoading.value = true;
+        Promise.all([
+          new Promise((resolve) => {
+            google.script.run
+              .withSuccessHandler((res) => {
+                if (res && res.success) adminEmailsList.value = res.data;
+                resolve();
+              })
+              .apiGetAdminEmails();
+          }),
+          new Promise((resolve) => {
+            google.script.run
+              .withSuccessHandler((res) => {
+                if (res && res.success) adminGuests.value = res.data;
+                resolve();
+              })
+              .apiGetGuests();
+          })
+        ]).then(() => {
+          isAdminLoading.value = false;
+        });
+      };
+
+      const addAdminEmail = async () => {
+        const emailToAdd = newAdminEmail.value.trim();
+        if (!emailToAdd) {
+          showAlert("추가할 이메일을 입력해주세요.", "입력 오류");
+          return;
+        }
+        if (adminEmailsList.value.includes(emailToAdd)) {
+          showAlert("이미 등록된 관리자 이메일입니다.", "오류");
+          return;
+        }
+
+        const confirmed = await showConfirm(`${emailToAdd} 관리자를 추가하시겠습니까?`);
+        if (!confirmed) return;
+
+        // Optimistic UI
+        const previousList = [...adminEmailsList.value];
+        const newEmailsList = [...adminEmailsList.value, emailToAdd];
+        
+        adminEmailsList.value = newEmailsList;
+        newAdminEmail.value = "";
+        
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (!res || !res.success) {
+              adminEmailsList.value = previousList;
+              showAlert("추가에 실패했습니다.", "오류");
+            }
+          })
+          .withFailureHandler(() => {
+            adminEmailsList.value = previousList;
+            showAlert("추가에 실패했습니다.", "오류");
+          })
+          .apiSaveAdminEmails(newEmailsList);
+      };
+
+      const deleteAdminEmail = async (emailToDelete) => {
+        const confirmed = await showConfirm(`${emailToDelete} 관리자를 삭제하시겠습니까?`);
+        if (!confirmed) return;
+
+        // Optimistic UI
+        const previousList = [...adminEmailsList.value];
+        const newEmailsList = adminEmailsList.value.filter(e => e !== emailToDelete);
+        
+        adminEmailsList.value = newEmailsList;
+        
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (!res || !res.success) {
+              adminEmailsList.value = previousList;
+              showAlert("삭제에 실패했습니다.", "오류");
+            }
+          })
+          .withFailureHandler(() => {
+            adminEmailsList.value = previousList;
+            showAlert("삭제에 실패했습니다.", "오류");
+          })
+          .apiSaveAdminEmails(newEmailsList);
+      };
+
+      const addAdminGuest = () => {
+        if (!newGuestForm.value.name || !newGuestForm.value.email) {
+          showAlert("이름과 이메일을 입력해주세요.", "입력 오류");
+          return;
+        }
+        
+        const newGuest = { ...newGuestForm.value };
+        const existingGuest = allUsers.value.find(u => u.email === newGuest.email);
+        if (existingGuest) {
+          showAlert("이미 등록된 이메일입니다.", "오류");
+          return;
+        }
+        
+        // Optimistic UI
+        const addedGuest = {
+          name: newGuest.name,
+          email: newGuest.email,
+          thumbnailPhotoUrl: '',
+          department: newGuest.department || 'Guest',
+          isGuest: true,
+          reviewCount: 0,
+          likeCount: 0
+        };
+        
+        const previousAdminGuests = [...adminGuests.value];
+        adminGuests.value.push(newGuest);
+        
+        allUsers.value.push(addedGuest);
+        selectedUserEmails.value.add(addedGuest.email);
+        
+        newGuestForm.value = { name: "", email: "", department: "" };
+        
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (res && res.success) {
+              adminGuests.value = res.data;
+            } else {
+              // Rollback
+              adminGuests.value = previousAdminGuests;
+              const idx = allUsers.value.findIndex(u => u.email === newGuest.email);
+              if (idx !== -1) allUsers.value.splice(idx, 1);
+              selectedUserEmails.value.delete(newGuest.email);
+              showAlert("게스트 추가 실패: " + (res ? res.message : ""), "오류");
+            }
+          })
+          .withFailureHandler(() => {
+            adminGuests.value = previousAdminGuests;
+            const idx = allUsers.value.findIndex(u => u.email === newGuest.email);
+            if (idx !== -1) allUsers.value.splice(idx, 1);
+            selectedUserEmails.value.delete(newGuest.email);
+            showAlert("게스트 추가 실패: 서버 에러", "오류");
+          })
+          .apiAddGuest(newGuest);
+      };
+
+      const deleteAdminGuest = async (email) => {
+        const confirmed = await showConfirm("해당 게스트를 삭제하시겠습니까?");
+        if (!confirmed) return;
+        
+        // Optimistic UI
+        const previousAdminGuests = [...adminGuests.value];
+        adminGuests.value = adminGuests.value.filter(g => g.email !== email);
+        
+        const previousAllUsers = [...allUsers.value];
+        const index = allUsers.value.findIndex(u => u.email === email);
+        let removedUser = null;
+        if (index !== -1) {
+          removedUser = allUsers.value[index];
+          allUsers.value.splice(index, 1);
+          selectedUserEmails.value.delete(email);
+        }
+        
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (res && res.success) {
+              adminGuests.value = res.data;
+            } else {
+              // Rollback
+              adminGuests.value = previousAdminGuests;
+              allUsers.value = previousAllUsers;
+              if (removedUser) selectedUserEmails.value.add(removedUser.email);
+              showAlert("삭제 실패: " + (res ? res.message : ""), "오류");
+            }
+          })
+          .withFailureHandler(() => {
+            adminGuests.value = previousAdminGuests;
+            allUsers.value = previousAllUsers;
+            if (removedUser) selectedUserEmails.value.add(removedUser.email);
+            showAlert("삭제 실패: 서버 에러", "오류");
+          })
+          .apiDeleteGuest(email);
+      };
+
+      const addExcludedEmail = async () => {
+        const emailToAdd = newExcludedEmail.value.trim();
+        if (!emailToAdd) {
+          showAlert("추가할 이메일을 입력해주세요.", "입력 오류");
+          return;
+        }
+        if (excludedEmailsList.value.includes(emailToAdd)) {
+          showAlert("이미 등록된 이메일입니다.", "오류");
+          return;
+        }
+
+        // Optimistic UI
+        const previousList = [...excludedEmailsList.value];
+        const newList = [...excludedEmailsList.value, emailToAdd];
+        
+        excludedEmailsList.value = newList;
+        newExcludedEmail.value = "";
+        
+        let wasSelected = false;
+        if (selectedUserEmails.value.has(emailToAdd)) {
+          wasSelected = true;
+          selectedUserEmails.value.delete(emailToAdd);
+        }
+        
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (!res || !res.success) {
+              // Rollback
+              excludedEmailsList.value = previousList;
+              if (wasSelected) selectedUserEmails.value.add(emailToAdd);
+              showAlert("추가에 실패했습니다.", "오류");
+            }
+          })
+          .withFailureHandler(() => {
+             excludedEmailsList.value = previousList;
+             if (wasSelected) selectedUserEmails.value.add(emailToAdd);
+             showAlert("추가에 실패했습니다.", "오류");
+          })
+          .apiSaveExcludedEmails(newList);
+      };
+
+      const deleteExcludedEmail = async (emailToDelete) => {
+        const confirmed = await showConfirm(`${emailToDelete} 이메일을 제외 명단에서 삭제하시겠습니까?`);
+        if (!confirmed) return;
+
+        // Optimistic UI
+        const previousList = [...excludedEmailsList.value];
+        const newList = excludedEmailsList.value.filter(e => e !== emailToDelete);
+        
+        excludedEmailsList.value = newList;
+        
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (!res || !res.success) {
+              excludedEmailsList.value = previousList;
+              showAlert("삭제에 실패했습니다.", "오류");
+            }
+          })
+          .withFailureHandler(() => {
+            excludedEmailsList.value = previousList;
+            showAlert("삭제에 실패했습니다.", "오류");
+          })
+          .apiSaveExcludedEmails(newList);
+      };
 
       let wheelRotation = 0;
       let wheelVelocity = 0;
@@ -205,16 +461,6 @@
       let pinDamping = 0.94;
       let pinKick = 0.15;
       let pinDrag = 0.8;
-
-      // [NEW] 기본 제외 인원 리스트 (이름 기준)
-      const DEFAULT_EXCLUDED_NAMES = [
-        "Mila Kim",
-        "June Park",
-        "Johan Kim",
-        "Dami Kim",
-        "Support NEW ID",
-        "Giyong Kim"
-      ];
 
       // --- Computed ---
       const uniqueCategories = computed(() => {
@@ -816,11 +1062,6 @@
               console.log("API Response [apiGetAllUsers]:", res);
               if (res && res.success) {
                 allUsers.value = res.data;
-                // 특정 인원을 제외하고 초기 선택 상태 설정
-                const initialSelected = res.data
-                  .filter(u => !DEFAULT_EXCLUDED_NAMES.includes(u.name))
-                  .map(u => u.email);
-                selectedUserEmails.value = new Set(initialSelected);
               } else {
                 console.warn(
                   "사용자 전체 목록 로드 실패 (권한 문제일 수 있음):",
@@ -832,6 +1073,18 @@
             .apiGetAllUsers();
         });
 
+        // 7. Excluded Emails Promise
+        const excludedEmailsPromise = new Promise((resolve) => {
+          google.script.run
+            .withSuccessHandler((res) => {
+              if (res && res.success) {
+                excludedEmailsList.value = res.data;
+              }
+              resolve();
+            })
+            .apiGetExcludedEmails();
+        });
+
         Promise.all([
           userPromise,
           mainDataPromise,
@@ -839,7 +1092,16 @@
           likesPromise,
           menuDataPromise,
           allUsersPromise,
-        ]).then(([u, m, r, l]) => {
+          excludedEmailsPromise
+        ]).then(([u, m, r, l, mu, au, ex]) => {
+          
+          if (allUsers.value.length > 0) {
+            const initialSelected = allUsers.value
+              .filter(u => !excludedEmailsList.value.includes(u.email))
+              .map(u => u.email);
+            selectedUserEmails.value = new Set(initialSelected);
+          }
+
           stopLoadingAnimation();
           isLoading.value = false;
 
@@ -2221,6 +2483,18 @@
         isUserSelected,
         generateTeams,
         copyTeamResult,
+        adminEmailsList,
+        newAdminEmail,
+        adminGuests,
+        newGuestForm,
+        addAdminEmail,
+        deleteAdminEmail,
+        addAdminGuest,
+        deleteAdminGuest,
+        excludedEmailsList,
+        newExcludedEmail,
+        addExcludedEmail,
+        deleteExcludedEmail,
       };
     },
   }).mount("#app");

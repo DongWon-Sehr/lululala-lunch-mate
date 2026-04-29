@@ -158,7 +158,7 @@ const ReviewService = {
   deleteReview: function (reviewId) {
     try {
       const currentUserEmail = Session.getActiveUser().getEmail();
-      const isAdmin = Config.ADMIN_EMAILS.includes(currentUserEmail);
+      const isAdmin = AdminService.getAdminEmails().includes(currentUserEmail);
 
       const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('review');
       const data = sheet.getDataRange().getValues();

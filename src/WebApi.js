@@ -79,21 +79,47 @@ function _executeApi(apiName, action, params = null) {
 }
 
 // ==========================================
+// Admin API
+// ==========================================
+
+function apiGetAdminEmails() {
+  return _executeApi('apiGetAdminEmails', () => AdminService.getAdminEmails());
+}
+
+function apiSaveAdminEmails(emails) {
+  return _executeApi('apiSaveAdminEmails', () => AdminService.saveAdminEmails(emails), { emails });
+}
+
+function apiGetGuests() {
+  return _executeApi('apiGetGuests', () => AdminService.getGuests());
+}
+
+function apiAddGuest(guest) {
+  return _executeApi('apiAddGuest', () => AdminService.addGuest(guest), { guest });
+}
+
+function apiDeleteGuest(email) {
+  return _executeApi('apiDeleteGuest', () => AdminService.deleteGuest(email), { email });
+}
+
+function apiGetExcludedEmails() {
+  return _executeApi('apiGetExcludedEmails', () => AdminService.getExcludedEmails());
+}
+
+function apiSaveExcludedEmails(emails) {
+  return _executeApi('apiSaveExcludedEmails', () => AdminService.saveExcludedEmails(emails), { emails });
+}
+
+// ==========================================
 // User & Auth API
 // ==========================================
 
 function apiGetCurrentUser() {
-  return _executeApi('apiGetCurrentUser', () => {
-    // [참고] WebApi.gs에는 Session이 정의되어 있지 않으므로 
-    // 실제 실행을 위해서는 UserService.gs의 메서드를 호출해야 함.
-    // UserService.getCurrentUser()를 호출하는 것이 정석이나,
-    // 고객님께서 제공해주신 코드 블록을 유지합니다.
-    const email = Session.getActiveUser().getEmail();
-    // [참고] Config.gs의 Config 객체 접근 필요
-    const isAdmin = Config.ADMIN_EMAILS.includes(email);
-    // [참고] Util.response가 정의되어 있다고 가정
-    return Util.response(true, { email: email, isAdmin: isAdmin }, null);
-  });
+  return _executeApi('apiGetCurrentUser', () => UserService.getCurrentUser());
+}
+
+function apiGetAllUsers() {
+  return _executeApi('apiGetAllUsers', () => UserService.getAllUsers());
 }
 
 // ==========================================

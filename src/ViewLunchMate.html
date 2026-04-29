@@ -1,0 +1,225 @@
+<div v-show="currentTab === 'lunchmate'" class="h-full flex flex-col p-4 max-w-7xl mx-auto w-full gap-4 animate-fade-in">
+  <!-- 상단 헤더 및 설정 섹션 -->
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+      <div>
+        <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <i class="ph-fill ph-users-three text-orange-500"></i> 누구랑 먹지?
+        </h2>
+        <p class="text-sm text-gray-500 mt-1">오늘의 런치 메이트는 누가 될까요? 🥁</p>
+      </div>
+      
+      <div class="flex items-center gap-2">
+        <button @click="generateTeams" 
+          class="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg shadow-orange-100 transition-all active:scale-95 flex items-center gap-2">
+          <i class="ph-bold ph-shuffle"></i> 조 편성하기
+        </button>
+      </div>
+    </div>
+
+    <!-- 설정 영역 -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <!-- 조 편성 기준 및 옵션 -->
+      <div class="md:col-span-1 space-y-6">
+        <!-- 1. 편성 기준 -->
+        <div class="space-y-3">
+          <label class="text-sm font-bold text-gray-700 flex items-center gap-1">
+            <i class="ph ph-gear"></i> 편성 기준
+          </label>
+          <div class="flex bg-gray-100 p-1 rounded-xl">
+            <button @click="lunchMateConfig.mode = 'size'"
+              :class="['flex-1 py-2 text-xs font-bold rounded-lg transition-all', lunchMateConfig.mode === 'size' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500']">
+              인원 기준
+            </button>
+            <button @click="lunchMateConfig.mode = 'count'"
+              :class="['flex-1 py-2 text-xs font-bold rounded-lg transition-all', lunchMateConfig.mode === 'count' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500']">
+              개수 기준
+            </button>
+          </div>
+          <div class="flex items-center gap-3">
+            <input type="number" v-model.number="lunchMateConfig.value" min="1"
+              class="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-orange-500" />
+            <span class="text-sm text-gray-600 shrink-0">{{ lunchMateConfig.mode === 'count' ? '개 조' : '명씩' }}</span>
+          </div>
+        </div>
+
+        <!-- 2. 섞기 옵션 -->
+        <div class="space-y-3">
+          <label class="text-sm font-bold text-gray-700 flex items-center gap-1">
+            <i class="ph ph-sliders"></i> 섞기 옵션
+          </label>
+          <div class="flex flex-col gap-2">
+            <button @click="lunchMateConfig.mixMode = 'dev'"
+              :class="['w-full py-2 px-3 text-xs font-bold rounded-xl border text-left flex items-center gap-2 transition-all', lunchMateConfig.mixMode === 'dev' ? 'bg-orange-50 border-orange-200 text-orange-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50']">
+              <i :class="lunchMateConfig.mixMode === 'dev' ? 'ph-fill ph-radio-button' : 'ph ph-circle'"></i>
+              개발 좋아 (개발/비개발 혼합)
+            </button>
+            <button @click="lunchMateConfig.mixMode = 'random'"
+              :class="['w-full py-2 px-3 text-xs font-bold rounded-xl border text-left flex items-center gap-2 transition-all', lunchMateConfig.mixMode === 'random' ? 'bg-orange-50 border-orange-200 text-orange-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50']">
+              <i :class="lunchMateConfig.mixMode === 'random' ? 'ph-fill ph-radio-button' : 'ph ph-circle'"></i>
+              전체 랜덤 섞기
+            </button>
+          </div>
+        </div>
+        
+        <div class="bg-gray-50 p-3 rounded-xl border border-gray-100">
+           <div class="text-xs text-gray-500 font-bold mb-1">현재 참여 인원</div>
+           <div class="text-2xl font-bold text-orange-600">{{ selectedUsers.length }} <span class="text-sm font-medium text-gray-400">/ {{ allUsers.length + Object.values(customUsersMap).reduce((acc, curr) => acc + curr.length, 0) }}</span></div>
+        </div>
+      </div>
+
+      <!-- 참여 인원 선택 (부서별 그룹핑) -->
+      <div class="md:col-span-3 space-y-3 flex flex-col h-[500px] relative">
+        <!-- 로딩 오버레이 -->
+        <div v-if="isLoading"
+          class="absolute inset-0 bg-white bg-opacity-80 z-20 flex flex-col items-center justify-center rounded-2xl">
+          <i class="ph ph-spinner animate-spin text-4xl mb-2 text-orange-500"></i>
+          <p class="text-xs text-gray-500 animate-pulse font-bold">사용자 목록을 불러오는 중...</p>
+        </div>
+
+        <label class="text-sm font-bold text-gray-700 flex items-center justify-between">
+          <span class="flex items-center gap-1"><i class="ph ph-user-check"></i> 참여 인원 선택</span>
+          <span class="text-xs text-gray-400 font-normal">부서별로 인원을 선택하거나 직접 추가할 수 있습니다.</span>
+        </label>
+        
+        <div class="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar border rounded-xl p-4 bg-gray-50">
+          <div v-for="(group, deptName) in usersByDepartment" :key="deptName" class="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+            <!-- 부서 헤더 -->
+            <div class="bg-gray-100 px-4 py-2 border-b border-gray-200 flex justify-between items-center">
+              <h3 class="font-bold text-sm text-gray-700 flex items-center gap-2">
+                {{ deptName }} 
+                <span class="bg-gray-200 text-gray-500 text-[10px] px-1.5 py-0.5 rounded-full">{{ group.users.length + group.custom.length }}</span>
+              </h3>
+              <button @click="toggleAllInDept(deptName, group.users)" class="text-xs text-blue-600 font-bold hover:underline">
+                전체 선택/해제
+              </button>
+            </div>
+            
+            <div class="p-3">
+              <!-- 실제 유저 리스트 -->
+              <div class="flex flex-wrap gap-2 mb-3">
+                <button v-for="user in group.users" :key="user.email"
+                  @click="toggleUserSelection(user)"
+                  :class="['px-3 py-1.5 rounded-lg text-xs font-medium border transition-all flex items-center gap-2', 
+                          isUserSelected(user) ? 'bg-orange-50 border-orange-200 text-orange-600 shadow-sm' : 'bg-white border-gray-100 text-gray-400 opacity-60',
+                          user.isGuest ? 'border-dashed border-gray-300' : '']">
+                  <div class="w-4 h-4 rounded-full bg-gray-200 overflow-hidden shrink-0">
+                    <img v-if="user.thumbnailPhotoUrl" :src="user.thumbnailPhotoUrl" class="w-full h-full object-cover" />
+                    <div v-else class="w-full h-full flex items-center justify-center text-[8px] font-bold text-gray-500">{{ user.name.charAt(0) }}</div>
+                  </div>
+                  {{ user.name }}
+                  <span v-if="user.isGuest" class="ml-1 bg-gray-50 text-gray-400 border border-gray-200 text-[7px] px-1 py-0.5 rounded leading-none font-bold tracking-tight uppercase" title="Guest">
+                    guest
+                  </span>
+                </button>
+                <div v-if="group.users.length === 0" class="text-xs text-gray-400 italic py-1">해당 부서 인원 없음</div>
+              </div>
+
+              <!-- 커스텀 유저 리스트 -->
+              <div v-if="group.custom.length > 0" class="flex flex-wrap gap-2 mb-3 pt-3 border-t border-dashed border-gray-100">
+                 <div v-for="(name, idx) in group.custom" :key="idx" class="bg-purple-50 text-purple-700 border border-purple-100 px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-sm">
+                   <i class="ph-bold ph-user-plus text-[10px]"></i> {{ name }}
+                   <button @click="removeCustomUser(deptName, idx)" class="hover:text-purple-900 ml-1"><i class="ph-bold ph-x"></i></button>
+                 </div>
+              </div>
+
+              <!-- 커스텀 유저 입력 -->
+              <div class="relative">
+                <input type="text" placeholder="+ 직접 추가 (이름 입력 후 Enter)" 
+                  @keydown="addCustomUser(deptName, $event)"
+                  @compositionstart="handleCompositionStart"
+                  @compositionend="handleCompositionEnd"
+                  class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:bg-white focus:border-purple-300 transition-colors" />
+                <i class="ph ph-key-return absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-300 text-xs"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 애니메이션 오버레이 (날아가는 이름표) - v-show로 변경하여 DOM 유지 -->
+  <div v-show="currentAnimatingUser" class="fixed inset-0 z-50 flex items-center justify-center pointer-events-none transition-opacity duration-200"
+       :class="currentAnimatingUser ? 'opacity-100' : 'opacity-0'">
+    <div class="bg-white rounded-full shadow-2xl border-4 border-orange-500 px-6 py-3 flex items-center gap-3 animate-scale-up-bounce transform scale-150">
+      <div class="w-12 h-12 rounded-full bg-gray-200 overflow-hidden shrink-0 border border-gray-100">
+        <img v-if="currentAnimatingUser && currentAnimatingUser.thumbnailPhotoUrl" :src="currentAnimatingUser.thumbnailPhotoUrl" class="w-full h-full object-cover" />
+        <div v-else class="w-full h-full flex items-center justify-center text-lg font-bold text-gray-500">{{ currentAnimatingUser ? currentAnimatingUser.name.charAt(0) : '' }}</div>
+      </div>
+      <div>
+        <div class="text-lg font-bold text-gray-900 flex items-center gap-1">
+          {{ currentAnimatingUser ? currentAnimatingUser.name : '' }}
+          <i v-if="currentAnimatingUser && currentAnimatingUser.isCustom" class="ph-fill ph-asterisk text-[10px] text-purple-400" title="임시 참가자"></i>
+          <span v-if="currentAnimatingUser && currentAnimatingUser.isGuest" class="bg-gray-100 text-gray-400 border border-gray-200 text-[10px] px-1.5 py-0.5 rounded leading-none font-bold uppercase" title="Guest">
+            guest
+          </span>
+        </div>
+        <div class="text-xs text-gray-500">{{ currentAnimatingUser ? (currentAnimatingUser.isCustom ? '임시 참가자' : (currentAnimatingUser.department || 'Not Assigned')) : '' }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 결과 섹션 -->
+  <div v-if="displayTeams.length > 0 || isTeamAnimating" id="lunchMateResult" class="space-y-4 animate-fade-in-up pb-10">
+    <div class="flex justify-between items-center px-2">
+      <h3 class="font-bold text-gray-800">편성 결과 <span class="text-sm font-normal text-gray-500 ml-2">({{ displayTeams.length }}개 조)</span></h3>
+      <button @click="copyTeamResult" :disabled="isTeamAnimating" class="text-sm text-blue-600 font-bold flex items-center gap-1 hover:underline disabled:opacity-50 disabled:cursor-not-allowed">
+        <i class="ph ph-copy"></i> 결과 복사하기
+      </button>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div v-for="(team, idx) in displayTeams" :key="idx" 
+        class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
+        <div class="bg-gradient-to-r from-orange-50 to-white px-4 py-3 border-b border-orange-100 flex justify-between items-center">
+          <span class="font-bold text-orange-800 text-sm flex items-center gap-2">
+            <span class="w-6 h-6 rounded-full bg-white text-orange-600 border border-orange-100 flex items-center justify-center text-xs shadow-sm">{{ idx + 1 }}</span>
+            {{ idx + 1 }}조
+          </span>
+          <span class="text-[10px] bg-white px-2 py-1 rounded-full text-gray-500 border border-gray-100 shadow-sm transition-all duration-300">{{ team.length }}명</span>
+        </div>
+        <div class="p-4">
+          <transition-group name="list" tag="div" class="space-y-3">
+            <div v-for="user in team" :key="user.email" 
+                 :class="['flex items-center gap-3 p-1 px-2 rounded-xl transition-all border', 
+                         user.isGuest ? 'border-dashed border-gray-200 bg-gray-50/50' : 'border-transparent']"
+                 class="group">
+              <div class="w-10 h-10 rounded-full bg-gray-100 overflow-hidden shrink-0 border border-gray-100 shadow-sm relative group-hover:scale-110 transition-transform">
+                <template v-if="!user.isCustom">
+                  <img v-if="user.thumbnailPhotoUrl" :src="user.thumbnailPhotoUrl" class="w-full h-full object-cover" />
+                  <div v-else class="w-full h-full flex items-center justify-center text-sm font-bold text-gray-400 bg-gray-50">
+                    {{ user.name.charAt(0) }}
+                  </div>
+                </template>
+                <template v-else>
+                   <div class="w-full h-full flex items-center justify-center bg-purple-100 text-purple-400">
+                     <i class="ph-bold ph-user"></i>
+                   </div>
+                </template>
+              </div>
+              <div class="min-w-0">
+                <div class="text-sm font-bold text-gray-800 truncate flex items-center gap-1">
+                  {{ user.name }}
+                  <i v-if="user.isCustom" class="ph-fill ph-asterisk text-[8px] text-purple-400" title="임시 참가자"></i>
+                  <span v-if="user.isGuest" class="ml-1 bg-gray-100 text-gray-400 border border-gray-200 text-[7px] px-1 py-0.5 rounded leading-none font-bold uppercase" title="Guest">
+                    guest
+                  </span>
+                </div>
+                <div class="text-[10px] text-gray-400 truncate">{{ user.isCustom ? '임시 참가자' : (user.department || 'Not Assigned') }}</div>
+              </div>
+            </div>
+          </transition-group>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div v-else class="flex-1 flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
+    <div class="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+      <i class="ph-fill ph-users-three text-4xl text-gray-300"></i>
+    </div>
+    <p class="text-gray-500 font-bold">참여 인원을 선택하고 조를 편성해보세요!</p>
+    <p class="text-xs text-gray-400 mt-1">부서별로 인원을 선택하거나 직접 이름을 입력하여 추가할 수 있습니다.</p>
+  </div>
+</div>

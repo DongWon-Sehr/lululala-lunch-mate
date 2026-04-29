@@ -28,11 +28,12 @@
 - **GWS 연동**: Google Workspace 조직도와 연동되어 부서별 인원 현황을 그룹핑하여 보여줍니다.
 - **시각적 재미**: 멤버가 한 명씩 날아가 조에 배정되는 카드 애니메이션 효과로 긴장감을 더했습니다.
 - **개발 좋아 모드**: 개발팀과 비개발팀이 골고루 섞이도록 지능적으로 배분하는 'Dev Mix' 셔플 모드를 기본으로 지원합니다.
-- **커스텀 인원**: 외부 게스트나 인턴 등 조직도에 없는 인원도 직접 텍스트로 입력하여 추가할 수 있습니다.
+- **게스트 & 제외 인원**: DB에 등록된 외부 게스트를 포함하거나, 특정 인원(휴직자 등)을 기본 제외하도록 설정할 수 있습니다.
 
 ### 4. 👤 마이페이지 (MyPage)
 - **활동 내역**: 내가 쓴 리뷰와 찜한 식당 목록을 모아봅니다.
 - **랭킹 시스템**: 리뷰 활동량에 따라 '아이언'부터 '블랙 다이아몬드'까지 등급(Tier)이 부여됩니다.
+- **관리자 설정**: UI 내에서 직접 어드민 권한, 게스트 명단, 조 편성 제외자 명단을 관리할 수 있습니다. (**Optimistic UI** 적용으로 즉각적인 피드백 제공)
 
 ## 🛠 기술 스택
 
@@ -40,17 +41,19 @@
     - Vue.js 3 (Composition API) via CDN
     - Tailwind CSS (CDN)
     - Phosphor Icons (UI 아이콘)
+    - **Optimistic UI Strategy**: 서버 응답 대기 없이 로컬 상태를 우선 업데이트하여 쾌적한 UX 제공.
 - **Backend**:
     - Google Apps Script (GAS)
     - Google Admin SDK (사용자 조회)
 - **Database**:
-    - Google Sheets (Restaurant, Review, Like, Menu 데이터 저장)
+    - Google Sheets (전체 데이터 UUID 기반 고유 식별 및 타임스탬프 관리)
 
 ## 📂 프로젝트 구조
 
 ```
 src/
-├── Config.js           # 환경 설정 (관리자 이메일 등)
+├── AdminService.js     # 어드민/게스트/제외자 관리 로직
+├── Migration.js        # DB 시트 및 스키마 초기화 로직
 ├── javascript.html     # Vue.js 애플리케이션 로직 (Main Logic)
 ├── ViewList.html       # 식당 리스트 탭 UI
 ├── ViewWheel.html      # 오늘 뭐먹지? 탭 UI
@@ -66,13 +69,14 @@ src/
 
 ## 🚀 설치 및 배포
 
-1. **Google Sheet 준비**: `restaurant`, `menu`, `review`, `like` 시트를 생성합니다.
+1. **Google Sheet 준비**: 관리 시트에 `restaurant`, `menu`, `review`, `like`, `admin`, `guest`, `excluded` 시트를 생성합니다.
 2. **Apps Script 프로젝트 생성**: 구글 시트에서 `확장 프로그램 > Apps Script`를 실행합니다.
-3. **코드 배포**: `src` 폴더 내의 파일들을 Apps Script 에디터에 복사합니다.
-    - `.js` 파일은 `.gs` 파일로 저장합니다.
-    - `.html` 파일은 `.html` 파일로 저장합니다.
-4. **서비스 추가**: 에디터 좌측 '서비스' 탭에서 `Admin SDK API`를 추가합니다.
-5. **배포**: `배포 > 새 배포`를 클릭하고 '웹 앱' 유형으로 배포합니다.
+3. **코드 배포 (CLI 추천)**:
+    - `clasp login`으로 구글 계정 로그인.
+    - `.clasp.json`에 스크립트 ID 설정 후 `clasp push` 실행.
+4. **서비스 추가**: 에디터 좌측 '서비스' 탭에서 `Admin SDK API`와 `Google Sheets API`를 추가합니다.
+5. **DB 초기화**: 에디터 상단 함수 목록에서 `setup` 함수를 선택하고 **실행**을 눌러 시트 스키마를 초기화합니다.
+6. **배포**: `배포 > 새 배포`를 클릭하고 '웹 앱' 유형으로 배포합니다.
     - 엑세스 권한: '도메인 내의 모든 사용자' (사내용)
 
 ## 📝 라이선스

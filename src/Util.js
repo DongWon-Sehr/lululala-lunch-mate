@@ -28,7 +28,12 @@ const Util = {
     for (let i = 1; i < values.length; i++) {
       const row = {};
       for (let j = 0; j < headers.length; j++) {
-        row[headers[j]] = values[i][j];
+        let val = values[i][j];
+        // 날짜 객체인 경우 ISO 문자열로 변환하여 클라이언트 전달 시 에러 방지
+        if (val instanceof Date) {
+          val = Util.safeDateIsoString(val);
+        }
+        row[headers[j]] = val;
       }
       data.push(row);
     }

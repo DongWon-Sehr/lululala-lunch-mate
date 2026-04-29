@@ -18,11 +18,11 @@ const AdminService = {
     }
     
     if (emails.length > 0) {
-      const now = new Date().toISOString();
+      const now = new Date();
       const rows = emails.map(email => [Util.getUuid(), email, now]);
       sheet.getRange(2, 1, rows.length, 3).setValues(rows);
     }
-    return Util.response(true, this.getAdminEmails().data, "관리자 권한이 저장되었습니다.");
+    return Util.response(true, AdminService.getAdminEmails().data, "관리자 권한이 저장되었습니다.");
   },
 
   getGuests: function() {
@@ -43,10 +43,10 @@ const AdminService = {
     }
     
     const id = Util.getUuid();
-    const createdAt = new Date().toISOString();
+    const createdAt = new Date();
     
     sheet.appendRow([id, guest.name, guest.email, guest.department || 'Guest', createdAt]);
-    return Util.response(true, this.getGuests().data, "게스트가 추가되었습니다.");
+    return Util.response(true, AdminService.getGuests().data, "게스트가 추가되었습니다.");
   },
 
   deleteGuest: function(email) {
@@ -64,7 +64,7 @@ const AdminService = {
     for (let i = 1; i < data.length; i++) {
       if (data[i][emailIndex] === email) {
         sheet.deleteRow(i + 1);
-        return Util.response(true, this.getGuests().data, "게스트가 삭제되었습니다.");
+        return Util.response(true, AdminService.getGuests().data, "게스트가 삭제되었습니다.");
       }
     }
     return Util.response(false, null, "게스트를 찾을 수 없습니다.");
@@ -89,10 +89,10 @@ const AdminService = {
     }
     
     if (emails.length > 0) {
-      const now = new Date().toISOString();
+      const now = new Date();
       const rows = emails.map(email => [Util.getUuid(), email, now]);
       sheet.getRange(2, 1, rows.length, 3).setValues(rows);
     }
-    return Util.response(true, this.getExcludedEmails().data, "기본 제외 인원이 저장되었습니다.");
+    return Util.response(true, AdminService.getExcludedEmails().data, "기본 제외 인원이 저장되었습니다.");
   }
 };

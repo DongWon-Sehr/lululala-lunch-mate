@@ -1791,14 +1791,18 @@
           .apiUpdateReview(editForm.value);
       };
 
-      const canManageReview = (review) => {
-        if (currentUser.value.isAdmin) return true;
-        if (
-          currentUser.value.email &&
+      // 리뷰 수정: 어드민 여부와 무관하게 본인이 작성한 리뷰만 가능
+      const canEditReview = (review) => {
+        return (
+          !!currentUser.value.email &&
           String(review.user_email) === String(currentUser.value.email)
-        )
-          return true;
-        return false;
+        );
+      };
+
+      // 리뷰 삭제: 본인 리뷰는 누구나, 어드민은 모든 리뷰 삭제 가능
+      const canDeleteReview = (review) => {
+        if (currentUser.value.isAdmin) return true;
+        return canEditReview(review);
       };
 
       const updateTooltip = (e, rest) => {
@@ -2435,7 +2439,8 @@
         isSubmitting,
         submitReview,
         deleteReview,
-        canManageReview,
+        canEditReview,
+        canDeleteReview,
         startEditReview,
         cancelEditReview,
         saveEditReview,

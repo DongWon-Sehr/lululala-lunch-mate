@@ -16,6 +16,8 @@
       const kebabButton = ref(null); // [NEW] 케밥 버튼 DOM 요소 참조용
 
       // --- Constants ---
+      // 앱 버전 (기능명세서.md 제목의 버전과 함께 관리)
+      const APP_VERSION = "v1.3.0";
       const GOOGLE_SHEET_URL =
         "https://docs.google.com/spreadsheets/d/1Zs610z6VE5AxeaJblNM8zRDu8fbGgn82F3nR7OId3ok/";
       const appElement = document.getElementById("app");
@@ -2477,6 +2479,7 @@
         openUserModal,
         closeUserModal,
         searchQuery,
+        APP_VERSION,
         GOOGLE_SHEET_URL,
         BASE_WEBAPP_URL,
         handleCancel,

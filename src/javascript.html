@@ -661,6 +661,9 @@
           : "?";
       });
 
+      // 식당 정보(가게 정보/메뉴) 편집 권한: 로그인한 사용자 전체에게 개방
+      const canEditRestaurant = computed(() => !!currentUser.value.email);
+
       const userReviewCount = computed(() => {
         if (!currentUser.value.email || allReviews.value.length === 0) return 0;
         return allReviews.value.filter(
@@ -2386,6 +2389,7 @@
         currentUser,
         userInitial,
         userId,
+        canEditRestaurant,
         userReviewCount,
         userRankInfo,
         isFilterOpen,

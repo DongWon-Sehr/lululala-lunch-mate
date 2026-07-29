@@ -112,26 +112,70 @@ const ReviewService = {
     }
   },
 
+  /**
+   * 현재 접속자가 어드민인지 확인
+   * - getAdminEmails()는 표준 응답 객체를 반환하므로 data 배열을 꺼내서 비교해야 함
+   */
+  _isAdmin: function (email) {
+    try {
+      const adminEmails = AdminService.getAdminEmails().data || [];
+      return adminEmails.includes(email);
+    } catch (e) {
+      console.warn('관리자 목록 조회 실패:', e);
+      return false;
+    }
+  },
+
+  /**
+   * 리뷰 수정
+   * - 권한: 어드민 여부와 무관하게 '본인이 작성한 리뷰'만 수정 가능
+   */
   updateReview: function (form) {
     try {
       if (!form.id) throw new Error("리뷰 ID 없음");
+      if (!form.rate || isNaN(form.rate) || form.rate < 1 || form.rate > 5) throw new Error("별점 오류");
+      if (!form.comment) throw new Error("코멘트 누락");
 
-      // ... (데이터 및 인덱스 찾기 로직 생략) ...
+      const currentUserEmail = Session.getActiveUser().getEmail();
+
+      const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('review');
+      const data = sheet.getDataRange().getValues();
+      const headers = data[0];
+
+      const idIndex = headers.indexOf('id');
+      const rateIndex = headers.indexOf('rate');
+      const commentIndex = headers.indexOf('comment');
+      const userNameIndex = headers.indexOf('user_name');
+      const emailIndex = headers.indexOf('user_email');
+      const restaurantIdIndex = headers.indexOf('restaurant_id');
+      const updatedAtIndex = headers.indexOf('updated_at');
+
+      let targetRowIndex = -1;
+      let restaurantId = null;
+
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][idIndex]) === String(form.id)) {
+          // 수정은 어드민에게도 예외를 두지 않음 (본인 리뷰만)
+          if (String(data[i][emailIndex]) !== String(currentUserEmail)) {
+            throw new Error("권한 없음: 본인이 작성한 리뷰만 수정할 수 있습니다.");
+          }
+
+          targetRowIndex = i + 1;
+          restaurantId = data[i][restaurantIdIndex];
+          break;
+        }
+      }
 
       if (targetRowIndex === -1) throw new Error("리뷰 없음");
 
       // [핵심 변경] 코멘트 저장 전 처리 로직 적용 -> Util 호출 (escape로 변경)
       const preparedComment = Util.escapeTextForSheet(form.comment);
-      // [추가 변경] 유저 이름은 수정 폼에 없으므로 기존 값 사용 또는 가정
-      // 이 예시에서는 form에 user_name이 없다고 가정하고, preparedUserName 정의 로직은 제거합니다.
 
       const now = new Date(); // [추가] 현재 시간 캡처
 
-      // 시트에 값 설정
+      // 시트에 값 설정 (user_name은 수정 폼에 없으므로 기존 값 유지)
       sheet.getRange(targetRowIndex, rateIndex + 1).setValue(parseInt(form.rate));
       sheet.getRange(targetRowIndex, commentIndex + 1).setValue(preparedComment);
-      // user_name은 수정되지 않으므로, 이 라인은 주석 처리하거나 해당 로직을 생략합니다.
-      // sheet.getRange(targetRowIndex, userNameIndex + 1).setValue(preparedUserName);
       sheet.getRange(targetRowIndex, updatedAtIndex + 1).setValue(now);
 
       if (restaurantId) this.recalculateRestaurantRate(restaurantId);
@@ -155,10 +199,14 @@ const ReviewService = {
     }
   },
 
+  /**
+   * 리뷰 삭제 (Soft Delete)
+   * - 권한: 본인이 작성한 리뷰, 어드민은 모든 리뷰 삭제 가능
+   */
   deleteReview: function (reviewId) {
     try {
       const currentUserEmail = Session.getActiveUser().getEmail();
-      const isAdmin = AdminService.getAdminEmails().includes(currentUserEmail);
+      const isAdmin = this._isAdmin(currentUserEmail);
 
       const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('review');
       const data = sheet.getDataRange().getValues();
@@ -174,8 +222,10 @@ const ReviewService = {
 
       for (let i = 1; i < data.length; i++) {
         if (String(data[i][idIndex]) === String(reviewId)) {
-          const reviewOwnerEmail = data[i][emailIndex];
-          if (!isAdmin && reviewOwnerEmail !== currentUserEmail) throw new Error("권한 없음");
+          const reviewOwnerEmail = String(data[i][emailIndex]);
+          if (!isAdmin && reviewOwnerEmail !== String(currentUserEmail)) {
+            throw new Error("권한 없음: 본인이 작성한 리뷰만 삭제할 수 있습니다.");
+          }
 
           targetRowIndex = i + 1;
           restaurantId = data[i][restaurantIdIndex];

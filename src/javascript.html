@@ -16,6 +16,8 @@
       const kebabButton = ref(null); // [NEW] 케밥 버튼 DOM 요소 참조용
 
       // --- Constants ---
+      // 앱 버전 (기능명세서.md 제목의 버전과 함께 관리)
+      const APP_VERSION = "v1.3.0";
       const GOOGLE_SHEET_URL =
         "https://docs.google.com/spreadsheets/d/1Zs610z6VE5AxeaJblNM8zRDu8fbGgn82F3nR7OId3ok/";
       const appElement = document.getElementById("app");
@@ -660,6 +662,9 @@
           ? currentUser.value.email.charAt(0).toUpperCase()
           : "?";
       });
+
+      // 식당 정보(가게 정보/메뉴) 편집 권한: 로그인한 사용자 전체에게 개방
+      const canEditRestaurant = computed(() => !!currentUser.value.email);
 
       const userReviewCount = computed(() => {
         if (!currentUser.value.email || allReviews.value.length === 0) return 0;
@@ -1788,14 +1793,18 @@
           .apiUpdateReview(editForm.value);
       };
 
-      const canManageReview = (review) => {
-        if (currentUser.value.isAdmin) return true;
-        if (
-          currentUser.value.email &&
+      // 리뷰 수정: 어드민 여부와 무관하게 본인이 작성한 리뷰만 가능
+      const canEditReview = (review) => {
+        return (
+          !!currentUser.value.email &&
           String(review.user_email) === String(currentUser.value.email)
-        )
-          return true;
-        return false;
+        );
+      };
+
+      // 리뷰 삭제: 본인 리뷰는 누구나, 어드민은 모든 리뷰 삭제 가능
+      const canDeleteReview = (review) => {
+        if (currentUser.value.isAdmin) return true;
+        return canEditReview(review);
       };
 
       const updateTooltip = (e, rest) => {
@@ -2386,6 +2395,7 @@
         currentUser,
         userInitial,
         userId,
+        canEditRestaurant,
         userReviewCount,
         userRankInfo,
         isFilterOpen,
@@ -2431,7 +2441,8 @@
         isSubmitting,
         submitReview,
         deleteReview,
-        canManageReview,
+        canEditReview,
+        canDeleteReview,
         startEditReview,
         cancelEditReview,
         saveEditReview,
@@ -2468,6 +2479,7 @@
         openUserModal,
         closeUserModal,
         searchQuery,
+        APP_VERSION,
         GOOGLE_SHEET_URL,
         BASE_WEBAPP_URL,
         handleCancel,

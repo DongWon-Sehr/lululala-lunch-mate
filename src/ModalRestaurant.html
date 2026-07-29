@@ -76,7 +76,7 @@
               </div>
 
               <div
-                v-if="modalMode === 'view' && currentUser.isAdmin"
+                v-if="modalMode === 'view' && canEditRestaurant"
                 class="relative self-center"
               >
                 <button
@@ -551,16 +551,18 @@
                       >{{ review.user_name }}</span
                     >
                     <div
-                      v-if="canManageReview(review) && modalMode !== 'readonly'"
+                      v-if="modalMode !== 'readonly' && (canEditReview(review) || canDeleteReview(review))"
                       class="flex gap-1 ml-2"
                     >
                       <button
+                        v-if="canEditReview(review)"
                         @click="startEditReview(review)"
                         class="text-gray-400 hover:text-blue-500"
                         title="수정"
                       >
                         <i class="ph ph-pencil-simple"></i></button
                       ><button
+                        v-if="canDeleteReview(review)"
                         @click="deleteReview(review.id)"
                         class="text-gray-400 hover:text-red-500"
                         title="삭제"

@@ -1003,19 +1003,6 @@
               console.log("API Response [apiGetAllReviews]:", res);
               if (res && res.success) {
                 allReviews.value = res.data.reviews;
-
-                const userEmail = currentUser.value.email;
-                const reviewedIds = new Set();
-                if (userEmail) {
-                  res.data.reviews.forEach((review) => {
-                    if (String(review.user_email) === String(userEmail)) {
-                      reviewedIds.add(review.restaurant_id);
-                    }
-                  });
-                }
-                myReviewedRestaurantIds.value = reviewedIds;
-                console.log("myReviewedRestaurantIds", myReviewedRestaurantIds);
-
                 resolve(true);
               } else {
                 resolve(false);
@@ -1090,7 +1077,19 @@
           allUsersPromise,
           excludedEmailsPromise
         ]).then(([u, m, r, l, mu, au, ex]) => {
-          
+          // Must run after BOTH user and review responses; computing it inside the
+          // review handler races with apiGetCurrentUser and can produce an empty set
+          const userEmail = currentUser.value.email;
+          const reviewedIds = new Set();
+          if (userEmail) {
+            allReviews.value.forEach((review) => {
+              if (String(review.user_email) === String(userEmail)) {
+                reviewedIds.add(review.restaurant_id);
+              }
+            });
+          }
+          myReviewedRestaurantIds.value = reviewedIds;
+
           if (allUsers.value.length > 0) {
             const initialSelected = allUsers.value
               .filter(u => !excludedEmailsList.value.includes(u.email))

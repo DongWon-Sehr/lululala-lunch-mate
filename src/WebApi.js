@@ -149,6 +149,14 @@ function apiGetAllMenus() {
 }
 
 // ==========================================
+// Hall of Fame API
+// ==========================================
+
+function apiGetHallOfFame() {
+  return _executeApi('apiGetHallOfFame', () => HallOfFameService.getHallOfFameData());
+}
+
+// ==========================================
 // Review API
 // ==========================================
 

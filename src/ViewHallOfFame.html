@@ -1,0 +1,221 @@
+<div v-show="currentTab === 'halloffame'" class="h-full flex flex-col p-4 max-w-7xl mx-auto w-full gap-4 animate-fade-in pb-10">
+  <!-- Header -->
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 relative">
+    <div>
+      <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+        <i class="ph-fill ph-trophy text-amber-500"></i> 명예의 전당
+      </h2>
+      <p class="text-sm text-gray-500 mt-1">뉴슐랭 가이드를 함께 만들어가는 기여자들을 소개합니다 👏</p>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div v-if="isHofLoading" class="flex-1 flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-100">
+    <i class="ph ph-spinner animate-spin text-4xl mb-2 text-orange-500"></i>
+    <p class="text-xs text-gray-500 animate-pulse font-bold">기여도를 집계하는 중...</p>
+  </div>
+
+  <template v-else-if="hallOfFame">
+    <!-- Top 3 podium -->
+    <div v-if="hofPodium.length > 0" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <div class="flex flex-col md:flex-row items-stretch justify-center gap-4">
+        <div v-for="(user, idx) in hofPodium" :key="user.email"
+          :class="['flex-1 max-w-xs mx-auto md:mx-0 rounded-2xl border p-5 flex flex-col items-center text-center relative transition-all',
+                  idx === 0 ? 'md:order-2 border-amber-200 bg-gradient-to-b from-amber-50 to-white shadow-md md:-translate-y-2' : '',
+                  idx === 1 ? 'md:order-1 border-gray-200 bg-gradient-to-b from-gray-50 to-white' : '',
+                  idx === 2 ? 'md:order-3 border-orange-100 bg-gradient-to-b from-orange-50 to-white' : '']">
+          <div :class="['absolute -top-3 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold text-white shadow',
+                       idx === 0 ? 'bg-amber-400' : idx === 1 ? 'bg-gray-400' : 'bg-amber-700']">
+            {{ idx + 1 }}
+          </div>
+          <i v-if="idx === 0" class="ph-fill ph-crown text-2xl text-amber-400 mb-1"></i>
+          <div :class="['rounded-full bg-gray-100 overflow-hidden border-2 shadow-sm mb-3 shrink-0',
+                       idx === 0 ? 'w-20 h-20 border-amber-300' : 'w-16 h-16 border-gray-200']">
+            <img v-if="user.thumbnailPhotoUrl" :src="user.thumbnailPhotoUrl" class="w-full h-full object-cover" />
+            <div v-else class="w-full h-full flex items-center justify-center text-xl font-bold text-gray-400">{{ user.name.charAt(0) }}</div>
+          </div>
+          <div class="font-bold text-gray-800 flex items-center gap-1">
+            {{ user.name }}
+            <i v-if="user.isMe" class="ph-fill ph-star text-[10px] text-orange-400" title="나"></i>
+          </div>
+          <div class="text-xs text-gray-400 mb-2">{{ user.department }}</div>
+          <div :class="['text-[11px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-gray-100 shadow-sm mb-3', user.tier.color]">
+            <i :class="user.tier.icon"></i> {{ user.tier.name }}
+          </div>
+          <div class="flex flex-wrap justify-center gap-1.5 text-[10px] text-gray-500">
+            <span class="bg-white border border-gray-100 rounded-full px-2 py-0.5 shadow-sm">식당 {{ user.restaurantCount }}</span>
+            <span class="bg-white border border-gray-100 rounded-full px-2 py-0.5 shadow-sm">메뉴 {{ user.menuCount }}</span>
+            <span class="bg-white border border-gray-100 rounded-full px-2 py-0.5 shadow-sm">리뷰 {{ user.reviewCount }}</span>
+            <span class="bg-white border border-gray-100 rounded-full px-2 py-0.5 shadow-sm">찜 {{ user.likeCount }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category leaderboards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div v-for="board in hofCategoryBoards" :key="board.title" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+        <div class="font-bold text-sm text-gray-800 flex items-center gap-1.5 mb-3">
+          <i :class="[board.icon, board.color]"></i> {{ board.title }}
+        </div>
+        <div v-if="board.items.length === 0" class="text-xs text-gray-400 italic py-2">아직 기록이 없어요</div>
+        <div v-else class="space-y-2.5">
+          <div v-for="(user, idx) in board.items" :key="user.email" class="flex items-center gap-2.5">
+            <div :class="['w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0',
+                         idx === 0 ? 'bg-amber-100 text-amber-600' : idx === 1 ? 'bg-gray-100 text-gray-500' : 'bg-orange-50 text-amber-700']">
+              {{ idx + 1 }}
+            </div>
+            <div class="w-6 h-6 rounded-full bg-gray-100 overflow-hidden shrink-0">
+              <img v-if="user.thumbnailPhotoUrl" :src="user.thumbnailPhotoUrl" class="w-full h-full object-cover" />
+              <div v-else class="w-full h-full flex items-center justify-center text-[9px] font-bold text-gray-400">{{ user.name.charAt(0) }}</div>
+            </div>
+            <div class="text-xs font-medium text-gray-700 truncate flex-1 flex items-center gap-1">
+              {{ user.name }}
+              <i :class="[user.tier.icon, user.tier.color, 'shrink-0']" :title="user.tier.name"></i>
+            </div>
+            <div class="text-xs font-bold text-gray-500 shrink-0">{{ user[board.key] }}{{ board.unit }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reviewer temperament -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div v-for="board in hofReviewerBoards" :key="board.title" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+        <div class="font-bold text-sm text-gray-800 flex items-center gap-1.5">
+          <span>{{ board.emoji }}</span> {{ board.title }}
+        </div>
+        <div class="text-xs text-gray-500 mb-3">{{ board.desc }} (리뷰 3개 이상)</div>
+        <div v-if="board.items.length === 0" class="text-xs text-gray-400 italic py-2">아직 집계 대상이 없어요</div>
+        <div v-else class="space-y-2.5">
+          <div v-for="(user, idx) in board.items" :key="user.email" class="flex items-center gap-2.5">
+            <div :class="['w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0',
+                         idx === 0 ? 'bg-amber-100 text-amber-600' : idx === 1 ? 'bg-gray-100 text-gray-500' : 'bg-orange-50 text-amber-700']">
+              {{ idx + 1 }}
+            </div>
+            <div class="w-6 h-6 rounded-full bg-gray-100 overflow-hidden shrink-0">
+              <img v-if="user.thumbnailPhotoUrl" :src="user.thumbnailPhotoUrl" class="w-full h-full object-cover" />
+              <div v-else class="w-full h-full flex items-center justify-center text-[9px] font-bold text-gray-400">{{ user.name.charAt(0) }}</div>
+            </div>
+            <div class="text-xs font-medium text-gray-700 truncate flex-1 flex items-center gap-1">
+              {{ user.name }}
+              <i :class="[user.tier.icon, user.tier.color, 'shrink-0']" :title="user.tier.name"></i>
+            </div>
+            <div class="text-xs font-bold text-gray-600 shrink-0 flex items-center gap-1">
+              <i class="ph-fill ph-star text-amber-400"></i>{{ user.avgRateGiven.toFixed(1) }}
+              <span class="text-[10px] text-gray-400 font-normal">({{ user.reviewCount }})</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Restaurant stats -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+        <div class="font-bold text-sm text-gray-800 flex items-center gap-1.5">
+          <i class="ph-fill ph-heart-straight text-rose-500"></i> 모두의 원픽
+        </div>
+        <div class="text-xs text-gray-500 mb-3">리뷰 수를 반영한 가중 평점이 높은 식당 (리뷰 3개 이상)</div>
+        <div v-if="hallOfFame.topRated.length === 0" class="text-xs text-gray-400 italic py-2">아직 집계 대상이 없어요</div>
+        <div v-else class="space-y-2.5">
+          <div v-for="(r, idx) in hallOfFame.topRated" :key="r.id" class="flex items-center gap-2.5">
+            <div :class="['w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0',
+                         idx === 0 ? 'bg-amber-100 text-amber-600' : idx === 1 ? 'bg-gray-100 text-gray-500' : 'bg-orange-50 text-amber-700']">
+              {{ idx + 1 }}
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="text-xs font-bold text-gray-700 truncate">{{ r.name }}</div>
+              <div class="text-[10px] text-gray-400">{{ r.category }}</div>
+            </div>
+            <div class="text-xs font-bold text-gray-600 shrink-0 flex items-center gap-1">
+              <i class="ph-fill ph-star text-amber-400"></i>{{ r.avgRate.toFixed(1) }}
+              <span class="text-[10px] text-gray-400 font-normal">리뷰 {{ r.reviewCount }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+        <div class="font-bold text-sm text-gray-800 flex items-center gap-1.5">
+          <i class="ph-fill ph-scales text-violet-500"></i> 논란의 맛집
+        </div>
+        <div class="text-xs text-gray-500 mb-3">별점이 극과 극! 호불호가 갈리는 식당 (리뷰 3개 이상)</div>
+        <div v-if="hallOfFame.controversial.length === 0" class="text-xs text-gray-400 italic py-2">아직 집계 대상이 없어요</div>
+        <div v-else class="space-y-2.5">
+          <div v-for="(r, idx) in hallOfFame.controversial" :key="r.id" class="flex items-center gap-2.5">
+            <div :class="['w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0',
+                         idx === 0 ? 'bg-amber-100 text-amber-600' : idx === 1 ? 'bg-gray-100 text-gray-500' : 'bg-orange-50 text-amber-700']">
+              {{ idx + 1 }}
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="text-xs font-bold text-gray-700 truncate">{{ r.name }}</div>
+              <div class="text-[10px] text-gray-400">{{ r.category }}</div>
+            </div>
+            <div class="text-xs font-bold text-gray-600 shrink-0 flex items-center gap-1">
+              <i class="ph-fill ph-star text-amber-400"></i>{{ r.avgRate.toFixed(1) }}
+              <span class="text-[10px] text-violet-500 font-bold">±{{ r.weightedStdDev.toFixed(2) }}</span>
+              <span class="text-[10px] text-gray-400 font-normal">리뷰 {{ r.reviewCount }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+        <div class="font-bold text-sm text-gray-800 flex items-center gap-1.5">
+          <i class="ph-fill ph-fire text-orange-500"></i> 요즘 핫플
+        </div>
+        <div class="text-xs text-gray-500 mb-3">최근 30일 동안 리뷰가 가장 활발했던 식당</div>
+        <div v-if="!hallOfFame.trending || hallOfFame.trending.length === 0" class="text-xs text-gray-400 italic py-2">최근 30일 리뷰가 없어요</div>
+        <div v-else class="space-y-2.5">
+          <div v-for="(r, idx) in hallOfFame.trending" :key="r.id" class="flex items-center gap-2.5">
+            <div :class="['w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0',
+                         idx === 0 ? 'bg-amber-100 text-amber-600' : idx === 1 ? 'bg-gray-100 text-gray-500' : 'bg-orange-50 text-amber-700']">
+              {{ idx + 1 }}
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="text-xs font-bold text-gray-700 truncate">{{ r.name }}</div>
+              <div class="text-[10px] text-gray-400">{{ r.category }}</div>
+            </div>
+            <div class="text-xs font-bold text-gray-600 shrink-0 flex items-center gap-1">
+              <i class="ph-fill ph-chat-circle-text text-orange-400"></i>{{ r.recentReviewCount }}건
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+        <div class="font-bold text-sm text-gray-800 flex items-center gap-1.5">
+          <i class="ph-fill ph-clock-counter-clockwise text-teal-600"></i> 추억의 맛집
+        </div>
+        <div class="text-xs text-gray-500 mb-3">지금은 사라졌지만 별점이 높았던 식당 (리뷰 3개 이상)</div>
+        <div v-if="!hallOfFame.memories || hallOfFame.memories.length === 0" class="text-xs text-gray-400 italic py-2">아직 집계 대상이 없어요</div>
+        <div v-else class="space-y-2.5">
+          <div v-for="(r, idx) in hallOfFame.memories" :key="r.id" class="flex items-center gap-2.5">
+            <div :class="['w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0',
+                         idx === 0 ? 'bg-amber-100 text-amber-600' : idx === 1 ? 'bg-gray-100 text-gray-500' : 'bg-orange-50 text-amber-700']">
+              {{ idx + 1 }}
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="text-xs font-bold text-gray-700 truncate">{{ r.name }}</div>
+              <div class="text-[10px] text-gray-400">{{ r.category }}</div>
+            </div>
+            <div class="text-xs font-bold text-gray-600 shrink-0 flex items-center gap-1">
+              <i class="ph-fill ph-star text-amber-400"></i>{{ r.avgRate.toFixed(1) }}
+              <span class="text-[10px] text-gray-400 font-normal">리뷰 {{ r.reviewCount }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <div v-if="hofPodium.length === 0" class="flex-1 flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
+      <div class="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+        <i class="ph-fill ph-trophy text-4xl text-gray-300"></i>
+      </div>
+      <p class="text-gray-500 font-bold">아직 집계된 기여 활동이 없어요</p>
+      <p class="text-xs text-gray-400 mt-1">식당을 등록하거나 리뷰를 남기면 명예의 전당에 오를 수 있어요!</p>
+    </div>
+  </template>
+</div>

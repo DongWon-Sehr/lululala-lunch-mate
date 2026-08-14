@@ -310,7 +310,7 @@
         </div>
       </div>
 
-      <!-- 관리자 설정 탭 -->
+      <!-- Admin settings tab -->
       <div v-if="myPageTab === 'admin' && currentUser?.isAdmin" class="space-y-6 animate-fade-in-up relative">
         <h1
           :class="isMobile ? 'justify-center' : 'justify-start'"
@@ -319,14 +319,14 @@
           <i class="ph-fill ph-gear text-gray-700"></i> 관리자 설정
         </h1>
 
-        <!-- 로딩 오버레이 -->
+        <!-- Loading overlay -->
         <div v-if="isAdminLoading"
           class="absolute inset-0 bg-white bg-opacity-80 z-20 flex flex-col items-center justify-center rounded-2xl min-h-[300px]">
           <i class="ph ph-spinner animate-spin text-4xl mb-2 text-orange-500"></i>
           <p class="text-xs text-gray-500 animate-pulse font-bold">데이터를 불러오는 중...</p>
         </div>
 
-        <!-- 관리자 이메일 목록 관리 -->
+        <!-- Admin email list management -->
         <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
           <h2 class="text-lg font-bold text-gray-900 mb-2">관리자 이메일 설정</h2>
           <p class="text-sm text-gray-500 mb-4">어드민 권한을 가질 사용자의 이메일을 등록합니다.</p>
@@ -367,7 +367,7 @@
           </div>
         </div>
 
-        <!-- 게스트 관리 -->
+        <!-- Guest management -->
         <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
           <h2 class="text-lg font-bold text-gray-900 mb-2">게스트 관리</h2>
           <p class="text-sm text-gray-500 mb-4">조 편성에 참여할 외부 인원을 등록합니다.</p>
@@ -414,7 +414,7 @@
           </div>
         </div>
 
-        <!-- 기본 제외 인원 관리 -->
+        <!-- Default excluded members management -->
         <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
           <h2 class="text-lg font-bold text-gray-900 mb-2">기본 제외 인원 관리</h2>
           <p class="text-sm text-gray-500 mb-4">조 편성 시 기본적으로 체크가 해제되어 있을 사용자의 이메일을 등록합니다.</p>

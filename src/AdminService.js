@@ -36,7 +36,6 @@ const AdminService = {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('guest');
     if (!sheet) return Util.response(false, null, "guest 시트가 존재하지 않습니다.");
 
-    // 중복 체크 (Util.getSheetData 활용하여 안전하게 검사)
     const existingGuests = Util.getSheetData('guest') || [];
     if (existingGuests.some(g => g.email === guest.email)) {
       return Util.response(false, null, "이미 등록된 게스트입니다.");

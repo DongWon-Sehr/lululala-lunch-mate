@@ -1,5 +1,5 @@
 <div v-show="currentTab === 'lunchmate'" class="h-full flex flex-col p-4 max-w-7xl mx-auto w-full gap-4 animate-fade-in">
-  <!-- 상단 헤더 및 설정 섹션 -->
+  <!-- Header and settings section -->
   <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
       <div>
@@ -17,11 +17,11 @@
       </div>
     </div>
 
-    <!-- 설정 영역 -->
+    <!-- Settings area -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-      <!-- 조 편성 기준 및 옵션 -->
+      <!-- Team assignment criteria and options -->
       <div class="md:col-span-1 space-y-6">
-        <!-- 1. 편성 기준 -->
+        <!-- Assignment criteria -->
         <div class="space-y-3">
           <label class="text-sm font-bold text-gray-700 flex items-center gap-1">
             <i class="ph ph-gear"></i> 편성 기준
@@ -43,7 +43,7 @@
           </div>
         </div>
 
-        <!-- 2. 섞기 옵션 -->
+        <!-- Shuffle options -->
         <div class="space-y-3">
           <label class="text-sm font-bold text-gray-700 flex items-center gap-1">
             <i class="ph ph-sliders"></i> 섞기 옵션
@@ -52,7 +52,7 @@
             <button @click="lunchMateConfig.mixMode = 'dev'"
               :class="['w-full py-2 px-3 text-xs font-bold rounded-xl border text-left flex items-center gap-2 transition-all', lunchMateConfig.mixMode === 'dev' ? 'bg-orange-50 border-orange-200 text-orange-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50']">
               <i :class="lunchMateConfig.mixMode === 'dev' ? 'ph-fill ph-radio-button' : 'ph ph-circle'"></i>
-              개발 좋아 (개발/비개발 혼합)
+              개발/비개발 골고루 섞기
             </button>
             <button @click="lunchMateConfig.mixMode = 'random'"
               :class="['w-full py-2 px-3 text-xs font-bold rounded-xl border text-left flex items-center gap-2 transition-all', lunchMateConfig.mixMode === 'random' ? 'bg-orange-50 border-orange-200 text-orange-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50']">
@@ -68,9 +68,9 @@
         </div>
       </div>
 
-      <!-- 참여 인원 선택 (부서별 그룹핑) -->
+      <!-- Participant selection (grouped by department) -->
       <div class="md:col-span-3 space-y-3 flex flex-col h-[500px] relative">
-        <!-- 로딩 오버레이 -->
+        <!-- Loading overlay -->
         <div v-if="isLoading"
           class="absolute inset-0 bg-white bg-opacity-80 z-20 flex flex-col items-center justify-center rounded-2xl">
           <i class="ph ph-spinner animate-spin text-4xl mb-2 text-orange-500"></i>
@@ -78,25 +78,32 @@
         </div>
 
         <label class="text-sm font-bold text-gray-700 flex items-center justify-between">
-          <span class="flex items-center gap-1"><i class="ph ph-user-check"></i> 참여 인원 선택</span>
+          <span class="flex items-center gap-1"><i class="ph ph-user-check"></i> 참여 인원 선택
+            <button @click="toggleAllUsers" class="flex items-center text-lg leading-none ml-1 transition-colors"
+              :title="allSelectState === 'all' ? '전체 해제' : '전체 선택'">
+              <i :class="checkStateIcon(allSelectState)"></i>
+            </button>
+          </span>
           <span class="text-xs text-gray-400 font-normal">부서별로 인원을 선택하거나 직접 추가할 수 있습니다.</span>
         </label>
         
         <div class="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar border rounded-xl p-4 bg-gray-50">
           <div v-for="(group, deptName) in usersByDepartment" :key="deptName" class="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-            <!-- 부서 헤더 -->
+            <!-- Department header -->
             <div class="bg-gray-100 px-4 py-2 border-b border-gray-200 flex justify-between items-center">
               <h3 class="font-bold text-sm text-gray-700 flex items-center gap-2">
-                {{ deptName }} 
+                {{ deptName }}
                 <span class="bg-gray-200 text-gray-500 text-[10px] px-1.5 py-0.5 rounded-full">{{ group.users.length + group.custom.length }}</span>
+                <button v-if="group.users.length > 0" @click="toggleAllInDept(deptName, group.users)"
+                  class="flex items-center text-lg leading-none transition-colors"
+                  :title="deptSelectState(group.users) === 'all' ? '전체 해제' : '전체 선택'">
+                  <i :class="checkStateIcon(deptSelectState(group.users))"></i>
+                </button>
               </h3>
-              <button @click="toggleAllInDept(deptName, group.users)" class="text-xs text-blue-600 font-bold hover:underline">
-                전체 선택/해제
-              </button>
             </div>
             
             <div class="p-3">
-              <!-- 실제 유저 리스트 -->
+              <!-- Directory user list -->
               <div class="flex flex-wrap gap-2 mb-3">
                 <button v-for="user in group.users" :key="user.email"
                   @click="toggleUserSelection(user)"
@@ -115,7 +122,7 @@
                 <div v-if="group.users.length === 0" class="text-xs text-gray-400 italic py-1">해당 부서 인원 없음</div>
               </div>
 
-              <!-- 커스텀 유저 리스트 -->
+              <!-- Custom user list -->
               <div v-if="group.custom.length > 0" class="flex flex-wrap gap-2 mb-3 pt-3 border-t border-dashed border-gray-100">
                  <div v-for="(name, idx) in group.custom" :key="idx" class="bg-purple-50 text-purple-700 border border-purple-100 px-2 py-1 rounded-lg text-xs flex items-center gap-1 shadow-sm">
                    <i class="ph-bold ph-user-plus text-[10px]"></i> {{ name }}
@@ -123,7 +130,7 @@
                  </div>
               </div>
 
-              <!-- 커스텀 유저 입력 -->
+              <!-- Custom user input -->
               <div class="relative">
                 <input type="text" placeholder="+ 직접 추가 (이름 입력 후 Enter)" 
                   @keydown="addCustomUser(deptName, $event)"
@@ -139,7 +146,7 @@
     </div>
   </div>
 
-  <!-- 애니메이션 오버레이 (날아가는 이름표) - v-show로 변경하여 DOM 유지 -->
+  <!-- Animation overlay (flying name tag) - uses v-show to keep the DOM alive -->
   <div v-show="currentAnimatingUser" class="fixed inset-0 z-50 flex items-center justify-center pointer-events-none transition-opacity duration-200"
        :class="currentAnimatingUser ? 'opacity-100' : 'opacity-0'">
     <div class="bg-white rounded-full shadow-2xl border-4 border-orange-500 px-6 py-3 flex items-center gap-3 animate-scale-up-bounce transform scale-150">
@@ -160,7 +167,7 @@
     </div>
   </div>
 
-  <!-- 결과 섹션 -->
+  <!-- Result section -->
   <div v-if="displayTeams.length > 0 || isTeamAnimating" id="lunchMateResult" class="space-y-4 animate-fade-in-up pb-10">
     <div class="flex justify-between items-center px-2">
       <h3 class="font-bold text-gray-800">편성 결과 <span class="text-sm font-normal text-gray-500 ml-2">({{ displayTeams.length }}개 조)</span></h3>

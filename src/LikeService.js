@@ -1,5 +1,4 @@
 const LikeService = {
-  // 사용자가 좋아요 누른 식당 ID 목록 조회
   getUserLikes: function () {
     try {
       const userEmail = Session.getActiveUser().getEmail();
@@ -21,7 +20,6 @@ const LikeService = {
     }
   },
 
-  // 좋아요 토글 (ON/OFF)
   toggleLike: function (restaurantId) {
     try {
       const userEmail = Session.getActiveUser().getEmail();
@@ -30,12 +28,10 @@ const LikeService = {
       const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('like');
 
       const data = sheet.getDataRange().getValues();
-      // 데이터가 없으면 헤더 생성 (첫 실행 시)
       if (data.length === 0) {
         sheet.appendRow(['id', 'restaurant_id', 'user_email', 'enabled', 'created_at', 'updated_at']);
       }
 
-      // 다시 데이터 로드 (헤더 포함)
       const freshData = sheet.getDataRange().getValues();
       const headers = freshData[0];
       const restIdIdx = headers.indexOf('restaurant_id');
@@ -46,7 +42,6 @@ const LikeService = {
       let targetRow = -1;
       let currentStatus = false;
 
-      // 기존 좋아요 기록 찾기
       for (let i = 1; i < freshData.length; i++) {
         if (String(freshData[i][restIdIdx]) === String(restaurantId) &&
           String(freshData[i][emailIdx]) === String(userEmail)) {
@@ -59,19 +54,16 @@ const LikeService = {
       const newStatus = !currentStatus;
 
       if (targetRow !== -1) {
-        // 기존 기록 업데이트
         sheet.getRange(targetRow, enabledIdx + 1).setValue(newStatus);
         sheet.getRange(targetRow, updatedIdx + 1).setValue(new Date());
       } else {
-        // 신규 생성
-        if (newStatus) { // true로 켜는 경우만 생성
+        if (newStatus) { // only create a row when toggling on
           sheet.appendRow([
             Util.getUuid(), restaurantId, userEmail, true, new Date(), new Date()
           ]);
         }
       }
 
-      // [수정] Restaurant 테이블의 like_count 업데이트 요청을 RestaurantService에 위임
       RestaurantService.updateLikeCountWrapper(restaurantId);
 
       return Util.response(true, { liked: newStatus }, newStatus ? "찜했습니다." : "찜을 해제했습니다.");
@@ -81,7 +73,6 @@ const LikeService = {
     }
   },
 
-  // 식당의 총 좋아요 수 계산 및 Restaurant 시트 업데이트
   updateRestaurantLikeCount: function (restaurantId) {
     const rawData = Util.getSheetData('like');
     const count = rawData.filter(r => {
@@ -90,7 +81,6 @@ const LikeService = {
       return String(rId) === String(restaurantId) && (enabled === true || enabled === 'TRUE' || enabled === 'true');
     }).length;
 
-    // [수정] 이제 RestaurantService에 구현된 함수를 호출합니다.
     RestaurantService.updateLikeCount(restaurantId, count);
   }
 };

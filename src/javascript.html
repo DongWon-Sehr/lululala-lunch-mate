@@ -12,12 +12,11 @@
 
   createApp({
     setup() {
-      // Vue 3 Composition API에서는 DOM 참조를 위해 ref를 사용합니다.
-      const kebabButton = ref(null); // [NEW] 케밥 버튼 DOM 요소 참조용
+      const kebabButton = ref(null);
 
       // --- Constants ---
-      // 앱 버전 (기능명세서.md 제목의 버전과 함께 관리)
-      const APP_VERSION = "v1.3.0";
+      // App version (kept in sync with the version in the 기능명세서.md title)
+      const APP_VERSION = "v1.3.1";
       const GOOGLE_SHEET_URL =
         "https://docs.google.com/spreadsheets/d/1Zs610z6VE5AxeaJblNM8zRDu8fbGgn82F3nR7OId3ok/";
       const appElement = document.getElementById("app");
@@ -32,22 +31,21 @@
 
       const windowWidth = ref(window.innerWidth);
       const currentUser = ref({ email: "", profileUrl: "", isAdmin: false });
-      const allUsers = ref([]); // [NEW] 전체 회사 인원 리스트 (w/ counts)
-      const lunchMateConfig = ref({ mode: "size", value: 4, mixMode: "dev" }); // [NEW] 조 편성 설정 (기본: 개발 좋아)
-      const selectedUserEmails = ref(new Set()); // [NEW] 선택된 유저 이메일
-      const customUsersMap = ref({}); // [NEW] 부서별 커스텀 추가 유저: { "부서명": ["이름1", "이름2"] }
-      const lunchMateTeams = ref([]); // [NEW] 최종 편성 결과 (애니메이션 완료 후 전체 표시용)
-      const displayTeams = ref([]); // [NEW] 화면에 표시되는 조 (애니메이션 중 하나씩 채워짐)
-      const isTeamAnimating = ref(false); // [NEW] 조 편성 애니메이션 진행 중
-      const currentAnimatingUser = ref(null); // [NEW] 현재 날아가는 유저 정보
+      const allUsers = ref([]);
+      const lunchMateConfig = ref({ mode: "size", value: 4, mixMode: "dev" });
+      const selectedUserEmails = ref(new Set());
+      const customUsersMap = ref({}); // Custom per-department users: { deptName: [name1, name2] }
+      const lunchMateTeams = ref([]); // Final team assignment (shown in full after the animation completes)
+      const displayTeams = ref([]); // Teams rendered on screen (filled one by one during the animation)
+      const isTeamAnimating = ref(false);
+      const currentAnimatingUser = ref(null);
       const isLoading = ref(true);
       const loadingText = ref(
         "사무실 근처 맛집 정보와 솔직 리뷰 불러오는 중... 🚀"
       );
-      const loadingInterval = ref(null); // [NEW] 타이머 ID 저장
-      const currentPhraseIndex = ref(0); // [NEW] 현재 문구 인덱스
+      const loadingInterval = ref(null);
+      const currentPhraseIndex = ref(0);
 
-      // [NEW] 로딩 문구 리스트 정의
       const LOADING_PHRASES = [
         "사무실 근처 맛집 정보와 솔직 리뷰 불러오는 중... 🚀",
         "룰루랄라 빅데이터 속을 헤엄치는 중...🐟",
@@ -134,14 +132,13 @@
 
       const sort = ref({ field: "like_count", order: "desc" });
 
-      // [추가] 모바일/데스크탑 드롭다운 제어 상태
       const sortDropdownOpen = ref(false);
       const pageSizeDropdownOpen = ref(false);
 
       const userLikes = ref(new Set());
 
       const myReviewedRestaurantIds = ref(new Set());
-      const menuMap = ref({}); // [NEW] 메뉴 캐싱 상태 추가
+      const menuMap = ref({});
 
       const modalOpen = ref(false);
       const modalMode = ref("view");
@@ -181,7 +178,6 @@
         resolve: null,
       });
 
-      // [NEW] 케밥 메뉴 상태
       const showKebabMenu = ref(false);
 
       // Tooltip & Wheel State
@@ -197,7 +193,7 @@
 
       const myPageTab = ref("info");
       
-      // [NEW] Admin Management
+      // Admin Management
       const adminEmailsList = ref([]);
       const newAdminEmail = ref("");
       const adminGuests = ref([]);
@@ -243,20 +239,18 @@
           return;
         }
 
-        // 이메일 형식 검사
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(emailToAdd)) {
           showAlert("유효한 이메일 형식이 아닙니다.", "입력 오류");
           return;
         }
 
-        // 이미 등록된 어드민인지 체크
         if (adminEmailsList.value.some(e => e.toLowerCase() === emailToAdd)) {
           showAlert("이미 등록된 관리자 이메일입니다.", "오류");
           return;
         }
 
-        // 실제 존재하는 사용자인지 체크 (오타 방지)
+        // Confirm before adding an email missing from the user list (guards against typos)
         const userExists = allUsers.value.some(u => u.email.toLowerCase() === emailToAdd);
         if (!userExists) {
           const confirmed = await showConfirm(`사용자 목록에 존재하지 않는 이메일(${emailToAdd})입니다. 그래도 추가하시겠습니까?`, "사용자 확인");
@@ -315,7 +309,6 @@
           return;
         }
 
-        // 이메일 형식 검사
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(guestEmail)) {
           showAlert("유효한 이메일 형식이 아닙니다.", "입력 오류");
@@ -416,20 +409,18 @@
           return;
         }
 
-        // 이메일 형식 검사
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(emailToAdd)) {
           showAlert("유효한 이메일 형식이 아닙니다.", "입력 오류");
           return;
         }
 
-        // 이미 등록된 제외 인원인지 체크
         if (excludedEmailsList.value.some(e => e.toLowerCase() === emailToAdd)) {
           showAlert("이미 등록된 이메일입니다.", "오류");
           return;
         }
 
-        // 실제 존재하는 사용자인지 체크 (오타 방지)
+        // Confirm before adding an email missing from the user list (guards against typos)
         const userExists = allUsers.value.some(u => u.email.toLowerCase() === emailToAdd);
         if (!userExists) {
           const confirmed = await showConfirm(`사용자 목록에 존재하지 않는 이메일(${emailToAdd})입니다. 그래도 추가하시겠습니까?`, "사용자 확인");
@@ -541,7 +532,7 @@
           )
             return false;
 
-          const priceValue = Number(r.price || 0); // r.price가 숫자라고 가정
+          const priceValue = Number(r.price || 0);
           if (
             filters.value.maxPrice > 0 &&
             priceValue > 0 &&
@@ -550,17 +541,14 @@
             return false;
           }
 
-          // [NEW] 좋아요 필터 적용
           if (showLikeFilter.value) {
             if (!userLikes.value.has(r.id)) return false;
           }
 
-          // [NEW] 내가 리뷰 남긴 식당 필터 (캐싱된 Set 사용)
           if (showMyReviewsFilter.value) {
             if (!myReviewedRestaurantIds.value.has(r.id)) return false;
           }
 
-          // [NEW] 내 리뷰를 기다리는 식당 필터 (내가 리뷰 남기지 않은 식당)
           if (showPendingReviewsFilter.value) {
             if (myReviewedRestaurantIds.value.has(r.id)) return false;
           }
@@ -591,7 +579,6 @@
               valA = Number(a.like_count || 0);
               valB = Number(b.like_count || 0);
             } else if (sort.value.field === "price") {
-              // [NEW] 가격순 정렬 (숫자 비교)
               valA = Number(a.price || 0);
               valB = Number(b.price || 0);
             }
@@ -623,26 +610,22 @@
         return allUsers.value.filter((u) => selectedUserEmails.value.has(u.email));
       });
 
-      // [NEW] 부서별 유저 그룹핑 (커스텀 유저 포함)
       const usersByDepartment = computed(() => {
         const groups = {};
         
-        // 1. 실제 유저 그룹핑
         allUsers.value.forEach(u => {
-          // 백엔드에서 이미 필터링 및 "Not Assigned" 처리를 했으므로 그대로 사용
+          // Backend already filters and assigns "Not Assigned", so use as-is
           const deptName = u.department || 'Not Assigned';
           
           if (!groups[deptName]) groups[deptName] = { users: [], custom: [] };
           groups[deptName].users.push(u);
         });
 
-        // 2. 커스텀 유저 반영
         Object.keys(customUsersMap.value).forEach(dept => {
            if (!groups[dept]) groups[dept] = { users: [], custom: [] };
            groups[dept].custom = customUsersMap.value[dept];
         });
 
-        // 3. 정렬 (키 기준)
         return Object.keys(groups).sort().reduce((acc, key) => {
           acc[key] = groups[key];
           return acc;
@@ -663,7 +646,7 @@
           : "?";
       });
 
-      // 식당 정보(가게 정보/메뉴) 편집 권한: 로그인한 사용자 전체에게 개방
+      // Restaurant info/menu editing is open to all signed-in users
       const canEditRestaurant = computed(() => !!currentUser.value.email);
 
       const userReviewCount = computed(() => {
@@ -717,7 +700,6 @@
           percentageValue = 100;
         }
 
-        // 4. 최종 결과 반환
         return {
           name: currentRank.name,
           icon: currentRank.icon,
@@ -728,7 +710,6 @@
           percentage: percentageValue,
           isMaxRank: isMaxRank,
 
-          // [NEW] 다음 랭크 정보 추가
           nextRankName: nextRankName,
           nextRankIcon: nextRankIcon,
           nextRankColor: nextRankColor,
@@ -737,7 +718,6 @@
 
       const currentRestaurantMenus = computed(() => {
         const restaurantId = selectedRestaurant.value?.id;
-        // selectedRestaurant.value.id와 menuMap.value를 사용하여 메뉴 데이터에 접근합니다.
         if (restaurantId && menuMap.value[String(restaurantId)]) {
           return menuMap.value[String(restaurantId)];
         }
@@ -748,38 +728,29 @@
         const menus = currentRestaurantMenus.value;
         if (!menus || menus.length === 0) return [];
 
-        // 정렬 로직: is_signature가 true인 메뉴가 false인 메뉴보다 앞에 오도록 정렬합니다.
-        // (b.is_signature - a.is_signature)는 true(1)를 false(0)보다 크게 처리하여 내림차순 정렬 효과를 냅니다.
+        // Signature menus first (boolean subtraction sorts true before false)
         return [...menus].sort((a, b) => {
           return b.is_signature - a.is_signature;
         });
       });
 
       const calculatedPriceDisplay = computed(() => {
-        // restaurantForm.menus를 감시하여 평균 가격을 계산
         return calculateAvgPrice(restaurantForm.value.menus);
       });
 
       const myLikedRestaurants = computed(() => {
-        // userLikes Set에 ID가 포함된 식당만 필터링합니다.
         const liked = restaurants.value.filter((r) =>
           userLikes.value.has(r.id)
         );
 
-        // 서버에서 좋아요 정보가 로드될 때 created_at 정보도 함께 온다고 가정하고 정렬합니다.
-        // 만약 rest 객체에 좋아요 관련 created_at이 없다면, 그냥 리스트 순서대로 반환합니다.
+        // NOTE: restaurant objects lack the user's liked-at timestamp (likes are stored
+        // as an ID Set), so sorting by like time would need an API change; list order for now.
         return liked;
-
-        // NOTE: 현재 JS 코드에서는 개별 식당(rest) 객체에 사용자의 '좋아요 시점(created_at)' 정보가 직접 포함되어 있지 않습니다.
-        // 좋아요는 Set(ID만)으로 관리되므로, 서버에서 좋아요 목록을 가져올 때 시점 정보를 포함하도록 API 수정이 필요합니다.
-        // 임시로, 리스트에 나타나는 순서대로 반환합니다.
       });
 
-      // [수정] 내 리뷰 리스트 (최신 리뷰 순 정렬)
       const myReviews = computed(() => {
         if (!currentUser.value.email) return [];
 
-        // 1. 내가 작성한 모든 리뷰를 가져와서 정렬합니다. (최신 updated_at 순)
         const reviewsByUser = allReviews.value
           .filter(
             (r) => String(r.user_email) === String(currentUser.value.email)
@@ -790,13 +761,11 @@
             return timeA - timeB;
           });
 
-        // 2. 각 리뷰에 해당하는 식당 정보를 찾아서 필드를 명확히 합니다.
         return reviewsByUser.map((review) => {
           const restaurant = restaurants.value.find(
             (r) => r.id === review.restaurant_id
           );
 
-          // 식당 정보가 없거나 부족할 경우를 대비한 기본값
           const restInfo = restaurant || {
             name: "삭제된 식당",
             category: "N/A",
@@ -806,18 +775,16 @@
           };
 
           return {
-            // 뷰에 필요한 식당 정보
             restaurant_id: restInfo.id,
             name: restInfo.name,
             category: restInfo.category,
             like_count: restInfo.like_count,
-            rate: restInfo.rate, // 식당 평균 평점
+            rate: restInfo.rate, // restaurant average rating
 
-            // 뷰에 필요한 해당 리뷰 정보
-            id: review.id, // 카드의 고유 키 (리뷰 ID)
-            review_rate: review.rate, // 이 카드가 보여줄 '나의' 개별 평점
-            comment: review.comment, // [수정] 이 카드가 보여줄 '나의' 리뷰 내용
-            updated_at: review.updated_at || review.created_at, // 카드에 표시할 업데이트 시간
+            id: review.id,
+            review_rate: review.rate, // my own rating for this restaurant
+            comment: review.comment,
+            updated_at: review.updated_at || review.created_at,
           };
         });
       });
@@ -835,7 +802,6 @@
         const rest = restaurants.value.find((r) => r.id === restId);
         if (!rest) return;
 
-        // 1. All Reviews 상태 업데이트 (추가/삭제/수정)
         if (newReview) {
           const index = allReviews.value.findIndex(
             (r) => r.id === newReview.id
@@ -854,7 +820,6 @@
           }
         }
 
-        // 2. 리뷰 카운트 및 평점 재계산
         const filteredReviews = allReviews.value.filter(
           (r) => String(r.restaurant_id) === String(restId)
         );
@@ -870,7 +835,6 @@
         rest.latestReview = filteredReviews[0]?.comment || null;
         rest.latestReviewRate = filteredReviews[0]?.rate || null;
 
-        // 3. 현재 모달 리뷰 및 필터 캐시 업데이트
         updateCurrentModalReviews(restId);
         updateReviewFilterCache(
           restId,
@@ -906,12 +870,12 @@
           name: restaurantForm.value.name,
           category: restaurantForm.value.category,
           tags: restaurantForm.value.tags,
-          signature_menu: serverData.signature_menu, // [수정] 서버에서 온 시그니처 메뉴명 사용
-          price: serverData.price, // [수정] 서버에서 온 평균 가격 사용
+          signature_menu: serverData.signature_menu, // use the signature menu name computed by the server
+          price: serverData.price, // use the average price computed by the server
           rate: existingRest ? existingRest.rate : 0,
           like_count: existingRest ? existingRest.like_count : 0,
           review_count: existingRest ? existingRest.review_count : 0,
-          // enabled, created_at, updated_at 필드는 서버에서 관리된다고 가정
+          // enabled, created_at, updated_at are managed by the server
         };
 
         if (isEdit) {
@@ -971,11 +935,9 @@
 
         const phraseLength = LOADING_PHRASES.length;
 
-        // 최초 문구 설정
         loadingText.value = LOADING_PHRASES[0];
 
         loadingInterval.value = setInterval(() => {
-          // 현재 문구와 다른 새로운 무작위 인덱스 선택
           let newIndex;
           do {
             newIndex = Math.floor(Math.random() * phraseLength);
@@ -986,7 +948,6 @@
         }, intervalTime);
       };
 
-      // [NEW] 로딩 애니메이션 중지 함수
       const stopLoadingAnimation = () => {
         if (loadingInterval.value) {
           clearInterval(loadingInterval.value);
@@ -998,7 +959,6 @@
         isLoading.value = true;
         startLoadingAnimation(3000);
 
-        // 1. User Data Promise (LOGGING ADDED)
         const userPromise = new Promise((resolve) => {
           google.script.run
             .withSuccessHandler((res) => {
@@ -1019,11 +979,10 @@
             .apiGetCurrentUser();
         });
 
-        // 2. Restaurant Data Promise (LOGGING ADDED)
         const mainDataPromise = new Promise((resolve) => {
           google.script.run
             .withSuccessHandler((res) => {
-              console.log("API Response [apiGetRestaurants]:", res); // <- NEW LOG
+              console.log("API Response [apiGetRestaurants]:", res);
               if (res && res.success) {
                 restaurants.value = res.data;
                 resolve(true);
@@ -1038,11 +997,10 @@
             .apiGetRestaurants();
         });
 
-        // 3. Review Data Promise (LOGGING ADDED)
         const reviewDataPromise = new Promise((resolve) => {
           google.script.run
             .withSuccessHandler((res) => {
-              console.log("API Response [apiGetAllReviews]:", res); // <- NEW LOG
+              console.log("API Response [apiGetAllReviews]:", res);
               if (res && res.success) {
                 allReviews.value = res.data.reviews;
 
@@ -1066,11 +1024,10 @@
             .apiGetAllReviews();
         });
 
-        // 4. Likes Data Promise (LOGGING ADDED)
         const likesPromise = new Promise((resolve) => {
           google.script.run
             .withSuccessHandler((res) => {
-              console.log("API Response [apiGetUserLikes]:", res); // <- NEW LOG
+              console.log("API Response [apiGetUserLikes]:", res);
               if (res && res.success) {
                 userLikes.value = new Set(res.data);
               }
@@ -1079,25 +1036,23 @@
             .apiGetUserLikes();
         });
 
-        // 5. Menu Data Promise (LOGGING ADDED)
         const menuDataPromise = new Promise((resolve) => {
           google.script.run
             .withSuccessHandler((res) => {
-              console.log("API Response [apiGetAllMenus]:", res); // <- NEW LOG
+              console.log("API Response [apiGetAllMenus]:", res);
               if (res && res.success) {
                 const map = {};
                 res.data.forEach((m) => {
                   if (!map[m.restaurant_id]) map[m.restaurant_id] = [];
                   map[m.restaurant_id].push(m);
                 });
-                menuMap.value = map; // [NEW] menuMap에 캐싱
+                menuMap.value = map;
               }
               resolve();
             })
             .apiGetAllMenus();
         });
 
-        // 6. All Users Data Promise (LOGGING ADDED)
         const allUsersPromise = new Promise((resolve) => {
           google.script.run
             .withSuccessHandler((res) => {
@@ -1115,7 +1070,6 @@
             .apiGetAllUsers();
         });
 
-        // 7. Excluded Emails Promise
         const excludedEmailsPromise = new Promise((resolve) => {
           google.script.run
             .withSuccessHandler((res) => {
@@ -1173,7 +1127,7 @@
           );
           rest.review_count = myReviews.length;
           if (myReviews.length > 0) {
-            // 최신 리뷰를 찾음 (이미 created_at 기준으로 정렬되어 있다고 가정)
+            // Reviews are assumed pre-sorted by created_at, so [0] is the latest
             rest.latestReview = myReviews[0].comment;
             rest.latestReviewRate = myReviews[0].rate;
           } else {
@@ -1183,7 +1137,7 @@
         });
       };
 
-      // [NEW] Like Logic
+      // Like Logic
       const isLiked = (restId) => userLikes.value.has(restId);
       const toggleLikeFilter = () =>
         (showLikeFilter.value = !showLikeFilter.value);
@@ -1234,13 +1188,10 @@
         const numPrice = Number(price);
         if (isNaN(numPrice) || numPrice === 0) return "가격 정보 없음";
 
-        // toLocaleString을 사용하여 천 단위 구분 기호 추가
         return `${numPrice.toLocaleString()}원`;
       };
 
       const addMenuInput = () => {
-        // 새 메뉴 항목을 추가합니다. is_signature는 기본적으로 false로 설정
-        // 빈 객체로 시작하여 Vue의 restaurantForm.menus 배열에 추가합니다.
         restaurantForm.value.menus.push({
           name: "",
           price: "",
@@ -1248,14 +1199,11 @@
         });
       };
 
-      // 메뉴 삭제 함수 (누락 가능성이 있어 함께 추가 권장)
       const removeMenuInput = (index) => {
-        // 메뉴 항목을 인덱스를 통해 삭제합니다.
         restaurantForm.value.menus.splice(index, 1);
       };
 
       const toggleMenuSignature = (index) => {
-        // 특정 인덱스의 is_signature 값을 토글합니다.
         const menu = restaurantForm.value.menus[index];
         if (menu) {
           menu.is_signature = !menu.is_signature;
@@ -1276,7 +1224,7 @@
       };
 
       const calculateAvgPrice = (menus) => {
-        if (!menus || menus.length === 0) return 0; // [수정] 텍스트가 아닌 0 반환
+        if (!menus || menus.length === 0) return 0;
 
         const validPrices = menus
           .map((m) => Number(m.price) || 0)
@@ -1287,14 +1235,12 @@
         const sum = validPrices.reduce((total, price) => total + price, 0);
         const avg = Math.round(sum / validPrices.length);
 
-        // [수정] 순수 평균 숫자만 반환
         return avg;
       };
 
       const openModal = (restId) => {
         modalMode.value = "view";
 
-        // 1. 전달받은 ID로 restaurants 배열에서 식당 객체를 찾습니다.
         const rest = restaurants.value.find((r) => r.id === restId);
 
         if (!rest) {
@@ -1304,7 +1250,6 @@
 
         selectedRestaurant.value = rest;
 
-        // [NEW] 메뉴 데이터 주입 및 정렬
         const cachedMenus = menuMap.value[rest.id] || [];
         cachedMenus.sort(
           (a, b) => (b.is_signature === true) - (a.is_signature === true)
@@ -1322,7 +1267,6 @@
         showKebabMenu.value = false;
       };
       const openReadOnlyModal = (restId) => {
-        // [수정] 식당 ID(restId)를 직접 인자로 받도록 변경
         modalMode.value = "readonly";
 
         const rest = restaurants.value.find((r) => r.id === restId);
@@ -1334,7 +1278,6 @@
 
         selectedRestaurant.value = rest;
 
-        // [NEW] 메뉴 데이터 주입 및 정렬
         const cachedMenus = menuMap.value[rest.id] || [];
         cachedMenus.sort(
           (a, b) => (b.is_signature === true) - (a.is_signature === true)
@@ -1368,22 +1311,6 @@
         modalOpen.value = true;
         showKebabMenu.value = false;
       };
-
-      /*
-      const startEditRestaurant = () => {
-        modalMode.value = 'edit';
-        const r = selectedRestaurant.value;
-        const cachedMenus = menuMap.value[r.id] || [];
-
-        restaurantForm.value = { 
-            id: r.id, name: r.name, category: r.category, tags: [...r.tags], signature_menu: r.signature_menu, price: r.price, tagInput: '',
-            menus: cachedMenus.map(m => ({ name: m.name, price: m.price, is_signature: m.is_signature || false }))
-        };
-
-        duplicateList.value = [];
-        showKebabMenu.value = false;
-      };
-      */
 
       const startEditRestaurant = () => {
         modalMode.value = "edit";
@@ -1568,20 +1495,17 @@
 
         console.log("DEBUG PAYLOAD [Full]:", payload);
 
-        // 서버 요청
         google.script.run
           .withSuccessHandler((res) => {
             if (res.success && res.data) {
-              // [NEW] menuMap 캐시 업데이트
               const updatedMenus = cleanMenus.map((m) => ({
                 restaurant_id: String(res.data.id),
                 name: m.name,
                 price: m.price,
                 is_signature: m.is_signature,
               }));
-              menuMap.value[String(res.data.id)] = updatedMenus; // 캐시 저장
+              menuMap.value[String(res.data.id)] = updatedMenus;
 
-              // [NEW] 로컬 상태 업데이트
               updateRestaurantLocalState(res.data, isEdit);
 
               isSubmitting.value = false;
@@ -1603,7 +1527,7 @@
               showAlert("식당 정보 저장에 실패했습니다.", "처리 실패");
             }
           })
-          [apiFunc](payload); // [수정] payload 사용
+          [apiFunc](payload);
       };
 
       const deleteRestaurant = async () => {
@@ -1627,7 +1551,6 @@
               if (index !== -1) {
                 restaurants.value.splice(index, 1);
               }
-              // [NEW] 메뉴 캐시에서도 삭제
               delete menuMap.value[idToDelete];
 
               isSubmitting.value = false;
@@ -1793,7 +1716,7 @@
           .apiUpdateReview(editForm.value);
       };
 
-      // 리뷰 수정: 어드민 여부와 무관하게 본인이 작성한 리뷰만 가능
+      // Editing a review: only the author may edit, regardless of admin status
       const canEditReview = (review) => {
         return (
           !!currentUser.value.email &&
@@ -1801,7 +1724,7 @@
         );
       };
 
-      // 리뷰 삭제: 본인 리뷰는 누구나, 어드민은 모든 리뷰 삭제 가능
+      // Deleting a review: authors can delete their own; admins can delete any
       const canDeleteReview = (review) => {
         if (currentUser.value.isAdmin) return true;
         return canEditReview(review);
@@ -1826,16 +1749,13 @@
         currentPage.value = 1;
       };
 
-      // [NEW] 툴팁용: 메뉴를 정렬하고 포맷하여 문자열로 반환 (시그니처 우선, 최대 3개)
       const getFormattedMenuString = (menus) => {
         if (!menus || menus.length === 0) return "메뉴 정보 없음";
 
-        // 시그니처 우선 정렬 (b.is_signature - a.is_signature)
         const sorted = [...menus].sort(
           (a, b) => b.is_signature - a.is_signature
         );
 
-        // 상위 3개 메뉴를 "메뉴명 (가격)" 형식으로 포맷
         return sorted
           .slice(0, 3)
           .map((m) => `${m.name} (${formatPrice(m.price)})`)
@@ -2078,13 +1998,34 @@
         });
       };
 
+      const deptSelectState = (userList) => {
+        if (!userList.length) return 'none';
+        const selectedCount = userList.filter(u => selectedUserEmails.value.has(u.email)).length;
+        if (selectedCount === 0) return 'none';
+        return selectedCount === userList.length ? 'all' : 'some';
+      };
+
+      const checkStateIcon = (state) =>
+        state === 'all' ? 'ph-fill ph-check-square text-orange-500 hover:text-orange-600'
+          : state === 'some' ? 'ph-fill ph-minus-square text-orange-500 hover:text-orange-600'
+          : 'ph ph-square text-gray-400 hover:text-gray-500';
+
+      const allSelectState = computed(() => deptSelectState(allUsers.value));
+
+      const toggleAllUsers = () => {
+        if (allSelectState.value === 'all') {
+          allUsers.value.forEach(u => selectedUserEmails.value.delete(u.email));
+        } else {
+          allUsers.value.forEach(u => selectedUserEmails.value.add(u.email));
+        }
+      };
+
       const addCustomUser = (deptName, e) => {
-        if (isComposing.value) return; // [FIX] IME 입력 중 중복 추가 방지
+        if (isComposing.value) return; // Prevent duplicate entry while IME composition is in progress
         const val = e.target.value.trim();
         if ((e.key === 'Enter' || e.key === ' ') && val) {
           e.preventDefault();
            if (!customUsersMap.value[deptName]) customUsersMap.value[deptName] = [];
-           // 중복 방지 (선택 사항)
            if (!customUsersMap.value[deptName].includes(val)) {
              customUsersMap.value[deptName].push(val);
            }
@@ -2102,7 +2043,6 @@
         return selectedUserEmails.value.has(user.email);
       };
 
-      // [Helper] 배열 셔플 함수
       const shuffleArray = (array) => {
         for (let i = array.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
@@ -2111,21 +2051,18 @@
         return array;
       };
 
-      // [Helper] 애니메이션용 지연 함수
       const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
       const generateTeams = async () => {
-        if (isTeamAnimating.value) return; // 애니메이션 중 중복 실행 방지
+        if (isTeamAnimating.value) return;
 
-        // 1. 참여 인원 수집 (선택된 유저 + 커스텀 유저)
         let pool = [...selectedUsers.value];
         
-        // 커스텀 유저도 pool에 추가 (가상의 유저 객체 생성)
         Object.keys(customUsersMap.value).forEach(dept => {
            customUsersMap.value[dept].forEach(name => {
              pool.push({
                name: name,
-               email: `custom-${Math.random().toString(36).substr(2, 9)}`, // 임시 ID
+               email: `custom-${Math.random().toString(36).substr(2, 9)}`, // temporary ID
                department: dept,
                isCustom: true
              });
@@ -2137,7 +2074,7 @@
           return;
         }
 
-        // [Optimazation] 이미지 프리로딩 (애니메이션 딜레이 감소)
+        // Preload avatars to avoid image-load delays during the animation
         pool.forEach(u => {
           if (u.thumbnailPhotoUrl) {
             const img = new Image();
@@ -2145,14 +2082,13 @@
           }
         });
 
-        // --- 로직 계산 (기존과 동일) ---
         let teams = [];
         const config = lunchMateConfig.value;
-        const val = config.value; // 조 개수 또는 인원 수
+        const val = config.value; // team count or team size, depending on mode
 
-        // --- 섞기 로직 분기 ---
+        // --- Mixing strategy ---
         if (config.mixMode === 'dev') {
-          // [개발 좋아 모드] 개발팀 vs 비개발팀 분류
+          // Dev-mix mode: split devs and non-devs so developers are spread across teams
           const devKeywords = ['Solution Development', 'Dev', '개발'];
           const devs = [];
           const others = [];
@@ -2167,7 +2103,6 @@
           shuffleArray(devs);
           shuffleArray(others);
 
-          // 조 개수 먼저 계산
           let teamCount = 0;
           if (config.mode === 'count') {
              teamCount = Math.max(1, Math.min(val, pool.length));
@@ -2177,26 +2112,24 @@
           
           for(let i=0; i<teamCount; i++) teams.push([]);
 
-          // 지그재그 배정 (개발팀 먼저, 그 다음 비개발팀)
+          // Zigzag assignment: devs first, then everyone else
           let currentTeamIdx = 0;
           
-          // 개발팀 배정
           devs.forEach(u => {
             teams[currentTeamIdx].push(u);
             currentTeamIdx = (currentTeamIdx + 1) % teamCount;
           });
           
-          // 비개발팀 배정 (현재 인덱스부터 이어서)
+          // Continue from the current index so team sizes stay balanced
           others.forEach(u => {
             teams[currentTeamIdx].push(u);
             currentTeamIdx = (currentTeamIdx + 1) % teamCount;
           });
           
-          // 각 팀 내부 셔플 (순서 섞기)
           teams.forEach(t => shuffleArray(t));
 
         } else {
-          // [전체 섞기 모드] (기존 로직)
+          // Full shuffle mode
           shuffleArray(pool);
           
           if (config.mode === "count") {
@@ -2213,14 +2146,12 @@
           }
         }
 
-        // --- 애니메이션 시작 ---
+        // --- Animation ---
         isTeamAnimating.value = true;
-        lunchMateTeams.value = teams; // 최종 결과 저장
+        lunchMateTeams.value = teams;
         
-        // 화면 표시용 빈 팀 생성
         displayTeams.value = teams.map(() => []);
 
-        // 애니메이션 큐 생성 (유저 + 배정된 팀 인덱스)
         const animationQueue = [];
         teams.forEach((team, teamIndex) => {
           team.forEach(user => {
@@ -2228,30 +2159,23 @@
           });
         });
 
-        // 큐를 섞어서 랜덤하게 날아가도록 함 (재미 요소)
+        // Shuffle the queue so members fly out in random order
         shuffleArray(animationQueue);
 
-        // 스크롤을 결과 섹션으로 이동
         nextTick(() => {
            const resultSection = document.getElementById('lunchMateResult');
            if(resultSection) resultSection.scrollIntoView({ behavior: 'smooth' });
         });
 
-        // 한 명씩 처리
         for (const item of animationQueue) {
-          // 1. 중앙에 이름표 등장
           currentAnimatingUser.value = item.user;
           
-          // 등장 + 대기 시간
           await delay(400); 
 
-          // 2. 조에 추가
           displayTeams.value[item.teamIndex].push(item.user);
           
-          // 3. 이름표 사라짐 (다음 사람 준비)
           currentAnimatingUser.value = null;
           
-          // 4. 간격 (사람 간)
           await delay(100); 
         }
 
@@ -2527,6 +2451,10 @@
         customUsersMap,
         toggleUserSelection,
         toggleAllInDept,
+        deptSelectState,
+        checkStateIcon,
+        allSelectState,
+        toggleAllUsers,
         addCustomUser,
         removeCustomUser,
         isUserSelected,

@@ -1,10 +1,9 @@
 const RestaurantService = {
   getAllRestaurants: function () {
     try {
-      // 1. 일반 데이터 조회 (Util.getSheetData 사용)
       const rawData = Util.getSheetData('restaurant');
 
-      // 2. Rich Text/Link 데이터 조회를 위한 Sheet API 직접 호출 (Location/MapUrl 추출용)
+      // Read rich text values directly via the Sheet API to extract the map URL linked in the location cell
       const ss = SpreadsheetApp.getActiveSpreadsheet();
       const sheet = ss.getSheetByName('restaurant');
       const dataRange = sheet.getDataRange();
@@ -23,13 +22,12 @@ const RestaurantService = {
         })
         .map((r, index) => {
 
-          // --- 직렬화 안정성 확보 및 Rich Text 복구 ---
+          // Normalize cell objects to plain values so the payload serializes safely
 
           let tagVal = (typeof r.tag === 'object' && r.tag) ? r.tag.text : r.tag;
           tagVal = Util.unescapeTextFromSheet(tagVal);
           r.tags = tagVal ? String(tagVal).split(',').map(t => t.trim()) : [];
 
-          // 위치, 텍스트 복원 및 Sheet API를 사용한 Map URL 추출
           let locText = '', locUrl = '';
 
           if (locationColIndex !== -1 && index + 1 < richValues.length) {
@@ -48,7 +46,7 @@ const RestaurantService = {
             locText = String(r.location || '');
           }
 
-          // [FIX] 직렬화 오류 방지를 위해 순수 문자열로 강제 변환
+          // Coerce to plain strings to avoid serialization errors
           r.location = String(locText);
           r.mapUrl = String(locUrl);
 

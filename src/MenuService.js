@@ -1,10 +1,9 @@
 const MenuService = {
-  // 1. 전체 메뉴 조회 (캐싱용)
+  // Fetch all menus (used for client-side caching)
   getAllMenus: function () {
     try {
       const rawData = Util.getSheetData('menu');
 
-      // [수정 1] 데이터가 없으면 바로 빈 배열을 담아 Util.response 객체로 반환
       if (!rawData || rawData.length === 0) {
         return Util.response(true, [], null);
       }
@@ -31,43 +30,36 @@ const MenuService = {
           };
         });
 
-      // [수정 2] 성공 시, 가공된 메뉴 목록을 Util.response 객체로 반환
       return Util.response(true, menus, null);
 
     } catch (e) {
       console.error('getAllMenus Error', e);
-      // [수정 3] 에러 발생 시에도 안전한 실패 응답 객체를 반환
       return Util.response(false, [], '메뉴 목록 조회 중 오류: ' + e.toString());
     }
   },
 
   getMenusByRestaurantId: function (restaurantId) {
-    // getAllMenus가 이제 Util.response 객체를 반환하므로, 이를 처리해야 함
     const allRes = this.getAllMenus();
-    if (!allRes.success) return allRes; // 실패 시 에러 객체 반환
+    if (!allRes.success) return allRes;
 
-    const all = allRes.data; // 성공 시 데이터 배열
+    const all = allRes.data;
     const targetMenus = all.filter(m => m.restaurant_id === String(restaurantId));
 
-    // [추가] 특정 식당 메뉴 조회도 Util.response를 통해 반환
     return Util.response(true, targetMenus, null);
   },
 
-  // 2. 메뉴 업데이트 (Overwrite 전략 + is_signature 저장)
+  // Update menus with an overwrite strategy: reuse existing rows, soft-delete leftovers, insert the rest
   updateMenus: function (restaurantId, menuForms) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     let sheet = ss.getSheetByName('menu');
 
-    try { // [추가] updateMenus 전체를 try-catch로 감싸서 안전한 응답 보장
-      // [수정] 초기 시트 생성 시 is_signature 위치 조정
+    try {
       if (!sheet) {
         sheet = ss.insertSheet('menu');
         sheet.appendRow(['id', 'restaurant_id', 'name', 'price', 'is_signature', 'enabled', 'created_at', 'updated_at']);
       }
 
-      // ... (기존 로직 유지) ...
-
-      // 헤더 인덱스 동적 탐색 (컬럼 위치 변경에 대응)
+      // Resolve header indices dynamically to tolerate column reordering
       const headers = sheet.getDataRange().getValues()[0];
       const rIdIdx = headers.indexOf('restaurant_id');
       const nameIdx = headers.indexOf('name');
@@ -78,7 +70,6 @@ const MenuService = {
 
       const data = sheet.getDataRange().getValues();
 
-      // 해당 식당의 행(Row) 인덱스 찾기
       const targetRowIndices = [];
       for (let i = 1; i < data.length; i++) {
         if (String(data[i][rIdIdx]) === String(restaurantId)) {
@@ -89,7 +80,7 @@ const MenuService = {
       const validNewMenus = (menuForms || []).filter(m => m.name && m.name.trim() !== '');
       const now = new Date();
 
-      // A. Overwrite (기존 행 덮어쓰기)
+      // A. Overwrite existing rows
       const reuseCount = Math.min(targetRowIndices.length, validNewMenus.length);
       for (let i = 0; i < reuseCount; i++) {
         const rowIndex = targetRowIndices[i];
@@ -108,7 +99,7 @@ const MenuService = {
         }
       }
 
-      // B. Soft Delete (남는 행 비활성화)
+      // B. Soft-delete leftover rows
       if (targetRowIndices.length > validNewMenus.length) {
         for (let i = validNewMenus.length; i < targetRowIndices.length; i++) {
           const rowIndex = targetRowIndices[i];
@@ -121,7 +112,7 @@ const MenuService = {
         }
       }
 
-      // C. Insert (모자란 행 추가)
+      // C. Insert additional rows
       if (validNewMenus.length > targetRowIndices.length) {
         const rowsToAdd = [];
         for (let i = targetRowIndices.length; i < validNewMenus.length; i++) {
@@ -149,17 +140,17 @@ const MenuService = {
         }
       }
 
-      // D. 평균 가격 계산 후 반환 (updateMenus는 RestaurantService에 의해 호출되며 평균 가격을 반환해야 함)
+      // D. Return the average price; the RestaurantService caller relies on this return value
       return this.calculateAveragePrice(validNewMenus);
 
     } catch (e) {
       console.error('updateMenus Error', e);
-      // [추가] 에러 시에는 0을 반환 (RestaurantService가 이 값을 받아서 처리해야 함)
+      // Return 0 on error so RestaurantService can still proceed
       return 0;
     }
   },
 
-  // 3. 평균 가격 계산 (0원 제외)
+  // Average price excluding zero-priced items
   calculateAveragePrice: function (menus) {
     if (!menus || menus.length === 0) return 0;
 

@@ -1,5 +1,5 @@
 /**
- * WebApp 진입점 (HTML 서빙)
+ * Web app entry point (serves the HTML).
  */
 function doGet(e) {
   try {
@@ -23,34 +23,30 @@ function doGet(e) {
 }
 
 /**
- * HTML include 헬퍼
+ * HTML include helper.
  */
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
 /**
- * [공통] API 실행 및 로깅 헬퍼 함수
- * - 모든 API 요청의 진입/성공/실패/에러를 통일된 포맷으로 로깅합니다.
- * * @param {string} apiName - 로그에 찍힐 API 함수명
- * @param {Function} action - 실제 실행할 서비스 로직 함수
- * @param {Object} [params] - 요청 파라미터 (로그용)
+ * Runs an API action with unified request/success/failure/error logging.
+ * @param {string} apiName - API function name used in logs
+ * @param {Function} action - service logic to execute
+ * @param {Object} [params] - request parameters (logging only)
  */
 function _executeApi(apiName, action, params = null) {
-  // 1. 요청 로그 (파라미터가 있으면 JSON 문자열로 변환하여 출력)
   const paramLog = params ? JSON.stringify(params) : 'No Params';
   console.log(`▶ [${apiName}] 요청: ${paramLog}`);
 
   const startTime = new Date().getTime();
 
   try {
-    // 2. 서비스 로직 실행
     const result = action();
     const duration = new Date().getTime() - startTime;
 
-    // 3. 결과 로그
     if (result && result.success) {
-      // 데이터가 너무 클 수 있으므로 성공 여부와 데이터 개수/요약 정보만 로그에 남김
+      // Log only a summary; full payloads can be too large
       let dataSummary = 'Data';
       if (Array.isArray(result.data)) {
         dataSummary = `Array(${result.data.length})`;
@@ -59,7 +55,6 @@ function _executeApi(apiName, action, params = null) {
       }
       console.log(`✅ [${apiName}] 성공 (${duration}ms): ${dataSummary}`);
     } else {
-      // 로직 실패 (예: 유효성 검사 실패 등)
       console.warn(`❌ [${apiName}] 실패 (${duration}ms): ${result ? result.message : 'No Response'}`);
       if (result) console.warn(`   └ 상세: ${JSON.stringify(result)}`);
     }
@@ -67,13 +62,11 @@ function _executeApi(apiName, action, params = null) {
     return result;
 
   } catch (err) {
-    // 4. 시스템 에러 로그 (예외 발생)
     const duration = new Date().getTime() - startTime;
     console.error(`🔥 [${apiName}] 에러 (${duration}ms): ${err.toString()}`);
-    console.error(err.stack); // 스택 트레이스 출력
+    console.error(err.stack);
 
-    // Config.gs 파일에 Util이 정의되어 있지 않으므로 임시로 직접 응답 객체 생성
-    // (실제 코드에서는 Util.response를 사용해야 함)
+    // Response built inline instead of via Util.response in case Util is not loaded
     return { success: false, data: null, message: `시스템 오류: ${err.toString()}` };
   }
 }
@@ -176,7 +169,7 @@ function apiDeleteReview(id) {
 }
 
 // ==========================================
-// Like (찜하기) API
+// Like API
 // ==========================================
 
 function apiGetUserLikes() {

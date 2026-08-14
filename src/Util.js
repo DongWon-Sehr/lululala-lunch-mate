@@ -1,18 +1,17 @@
 /**
- * Google Apps Script에서 사용되는 범용 유틸리티 함수들을 모아둔 파일입니다.
+ * General-purpose utility functions for Google Apps Script.
  */
 
-// 전역 변수 충돌을 막기 위해 모든 기능을 const Util 객체 내부에 통합 정의합니다.
+// All helpers live inside the Util object to avoid global name collisions.
 
 const Util = {
 
-  // Helper: 현재 활성된 Google Sheet를 가져옵니다.
   getSpreadsheet: function () {
     return SpreadsheetApp.getActiveSpreadsheet();
   },
 
   /**
-   * 지정된 시트에서 헤더를 포함한 전체 데이터를 JSON 배열로 읽어옵니다.
+   * Read all rows of a sheet (using its header row) as an array of objects.
    */
   getSheetData: function (sheetName) {
     const sheet = Util.getSpreadsheet().getSheetByName(sheetName);
@@ -29,7 +28,7 @@ const Util = {
       const row = {};
       for (let j = 0; j < headers.length; j++) {
         let val = values[i][j];
-        // 날짜 객체인 경우 ISO 문자열로 변환하여 클라이언트 전달 시 에러 방지
+        // Convert Dates to ISO strings to avoid serialization errors when sent to the client
         if (val instanceof Date) {
           val = Util.safeDateIsoString(val);
         }
@@ -41,21 +40,21 @@ const Util = {
   },
 
   /**
-   * 표준 응답 포맷을 생성합니다.
+   * Build the standard response object.
    */
   response: function (success, data, message) {
     return { success, data, message: message || (success ? 'Success' : 'Error') };
   },
 
   /**
-   * UUID (Universally Unique Identifier)를 생성합니다.
+   * Generate a UUID.
    */
   getUuid: function () {
     return Utilities.getUuid();
   },
 
   /**
-   * Google Sheet 입력 시 문제를 일으킬 수 있는 문자(탭, 개행 등)를 처리합니다.
+   * Escape characters (newline, tab) that break Google Sheet cells.
    */
   escapeTextForSheet: function (text) {
     if (typeof text !== 'string') return text;
@@ -63,7 +62,7 @@ const Util = {
   },
 
   /**
-   * Sheet에서 읽은 문자열에서 이스케이프된 문자(탭, 개행 등)를 복원합니다.
+   * Restore escaped characters (newline, tab) in text read back from a Sheet.
    */
   unescapeTextFromSheet: function (text) {
     if (typeof text !== 'string') return text;
@@ -71,29 +70,26 @@ const Util = {
   },
 
   /**
-   * Sheet에서 읽어온 다양한 형태의 날짜 값을 표준 ISO 8601 문자열로 변환합니다.
+   * Convert the various date value shapes a Sheet can return into an ISO 8601 string.
    */
   safeDateIsoString: function (val) {
-    if (!val) return null; // [수정] 값이 없으면 null
+    if (!val) return null;
     try {
-      // GAS에서 Date 객체로 읽어오는 경우 처리
       if (val instanceof Date) return val.toISOString();
 
-      // 구글 시트 날짜 시리얼 번호(숫자) 처리
+      // Numbers are Sheets date serials
       if (typeof val === 'number') {
-        // 25569는 1970-01-01을 의미하는 Excel 날짜 시리얼 값
+        // 25569 is the Excel/Sheets serial value for 1970-01-01
         const sheetDate = new Date((val - 25569) * 86400 * 1000);
         return sheetDate.toISOString();
       }
 
-      // 일반 날짜/문자열 처리
       const d = new Date(val);
-      // 유효하지 않은 날짜(Invalid Date)면 null 반환
       if (isNaN(d.getTime())) return null;
 
       return d.toISOString();
     } catch (e) {
-      return null; // [수정] 에러 발생 시 null
+      return null;
     }
   }
 };

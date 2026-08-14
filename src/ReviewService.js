@@ -3,7 +3,6 @@ const ReviewService = {
     try {
       const rawData = Util.getSheetData('review');
 
-      // [NEW] 리뷰 개수 카운트 및 임시 저장용 맵
       const reviewCountMap = {};
 
       const reviews = rawData
@@ -12,7 +11,7 @@ const ReviewService = {
           return enabledVal === true || enabledVal === 'TRUE' || enabledVal === 'true';
         })
         .map(r => {
-          // [수정 1] 날짜 데이터도 객체({value:..., text:...})일 수 있으므로 먼저 풀어줌
+          // Dates may arrive as {value, text} objects; unwrap before conversion
           let rawCreated = r.created_at;
           let rawUpdated = r.updated_at;
 
@@ -23,29 +22,23 @@ const ReviewService = {
             rawUpdated = rawUpdated.value || rawUpdated.text;
           }
 
-          // [수정 2] 안전한 변환 함수 호출
           r.created_at = Util.safeDateIsoString(rawCreated);
           r.updated_at = Util.safeDateIsoString(rawUpdated);
 
-          // 객체 필드 처리
           if (typeof r.user_email === 'object' && r.user_email) r.user_email = r.user_email.text || r.user_email.value;
           if (typeof r.comment === 'object' && r.comment) r.comment = r.comment.text || r.comment.value;
           if (typeof r.user_name === 'object' && r.user_name) r.user_name = r.user_name.text || r.user_name.value;
 
-          // [핵심 변경] 불러온 코멘트 복원 로직 적용 -> Util 호출
           r.comment = Util.unescapeTextFromSheet(r.comment);
-          // [추가 변경] 불러온 유저 이름 복원 로직 적용 -> Util 호출
           r.user_name = Util.unescapeTextFromSheet(r.user_name);
 
           r.user_email = r.user_email ? String(r.user_email) : '';
 
-          // [NEW] 리뷰 개수 카운트
           const rId = String(r.restaurant_id);
           reviewCountMap[rId] = (reviewCountMap[rId] || 0) + 1;
 
           return r;
         })
-        // 서버측 1차 정렬 (날짜 -> ID)
         .sort((a, b) => {
           const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
           const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -53,7 +46,6 @@ const ReviewService = {
           return 0;
         });
 
-      // [수정] 리뷰 데이터와 리뷰 개수 맵을 함께 반환
       return Util.response(true, { reviews: reviews, reviewCountMap: reviewCountMap }, null);
     } catch (e) {
       return Util.response(false, null, e.toString());
@@ -61,7 +53,6 @@ const ReviewService = {
   },
 
 
-  // [수정] 특정 식당 리뷰만 필터링하여 반환
   getReviewsByRestaurant: function (restaurantId) {
     const allReviewsRes = this.getAllReviews();
     if (!allReviewsRes.success) return allReviewsRes;
@@ -80,30 +71,28 @@ const ReviewService = {
       const currentUserEmail = Session.getActiveUser().getEmail();
       const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('review');
 
-      const newId = Util.getUuid(); // [추가] ID를 미리 생성
+      const newId = Util.getUuid();
       const preparedComment = Util.escapeTextForSheet(form.comment);
       const preparedUserName = Util.escapeTextForSheet(form.user_name);
-      const now = new Date(); // [추가] 현재 시간 캡처
+      const now = new Date();
 
       const newRow = [
-        newId, form.restaurant_id, parseInt(form.rate), preparedComment, // newId 사용
+        newId, form.restaurant_id, parseInt(form.rate), preparedComment,
         preparedUserName, currentUserEmail, true, now, now
       ];
 
       sheet.appendRow(newRow);
       this.recalculateRestaurantRate(form.restaurant_id);
 
-      // [수정] 성공 시, 새로 등록된 리뷰의 핵심 정보를 객체로 구성하여 반환
       const reviewDataToReturn = {
         id: newId,
         restaurant_id: String(form.restaurant_id),
         rate: parseInt(form.rate),
-        comment: Util.unescapeTextFromSheet(preparedComment), // 클라이언트가 복원된 텍스트를 사용하도록 unescape
+        comment: Util.unescapeTextFromSheet(preparedComment), // unescape so the client receives the restored text
         user_name: Util.unescapeTextFromSheet(preparedUserName),
         user_email: currentUserEmail,
         created_at: now.toISOString(),
         updated_at: now.toISOString(),
-        // enabled: true (기본값)
       };
 
       return Util.response(true, reviewDataToReturn, "리뷰 등록 완료");
@@ -113,8 +102,8 @@ const ReviewService = {
   },
 
   /**
-   * 현재 접속자가 어드민인지 확인
-   * - getAdminEmails()는 표준 응답 객체를 반환하므로 data 배열을 꺼내서 비교해야 함
+   * Check whether the given email belongs to an admin.
+   * getAdminEmails() returns the standard response object, so compare against its data array.
    */
   _isAdmin: function (email) {
     try {
@@ -127,8 +116,8 @@ const ReviewService = {
   },
 
   /**
-   * 리뷰 수정
-   * - 권한: 어드민 여부와 무관하게 '본인이 작성한 리뷰'만 수정 가능
+   * Update a review.
+   * Permission: only the author may edit — admins get no exception.
    */
   updateReview: function (form) {
     try {
@@ -155,7 +144,7 @@ const ReviewService = {
 
       for (let i = 1; i < data.length; i++) {
         if (String(data[i][idIndex]) === String(form.id)) {
-          // 수정은 어드민에게도 예외를 두지 않음 (본인 리뷰만)
+          // No admin exception for edits: only the author may modify
           if (String(data[i][emailIndex]) !== String(currentUserEmail)) {
             throw new Error("권한 없음: 본인이 작성한 리뷰만 수정할 수 있습니다.");
           }
@@ -168,21 +157,18 @@ const ReviewService = {
 
       if (targetRowIndex === -1) throw new Error("리뷰 없음");
 
-      // [핵심 변경] 코멘트 저장 전 처리 로직 적용 -> Util 호출 (escape로 변경)
       const preparedComment = Util.escapeTextForSheet(form.comment);
 
-      const now = new Date(); // [추가] 현재 시간 캡처
+      const now = new Date();
 
-      // 시트에 값 설정 (user_name은 수정 폼에 없으므로 기존 값 유지)
+      // user_name is not part of the edit form, so the existing value is kept
       sheet.getRange(targetRowIndex, rateIndex + 1).setValue(parseInt(form.rate));
       sheet.getRange(targetRowIndex, commentIndex + 1).setValue(preparedComment);
       sheet.getRange(targetRowIndex, updatedAtIndex + 1).setValue(now);
 
       if (restaurantId) this.recalculateRestaurantRate(restaurantId);
 
-      // [수정] 수정된 리뷰의 핵심 정보를 객체로 구성하여 반환
-      // (Vue가 상태를 업데이트하는 데 필요한 필드만 포함)
-      // user_name과 user_email은 data[targetRowIndex - 1]에서 기존 값을 가져와야 정확함
+      // Return only the fields the client needs to update its state
       const reviewDataToReturn = {
         id: String(form.id),
         restaurant_id: String(restaurantId),
@@ -200,8 +186,8 @@ const ReviewService = {
   },
 
   /**
-   * 리뷰 삭제 (Soft Delete)
-   * - 권한: 본인이 작성한 리뷰, 어드민은 모든 리뷰 삭제 가능
+   * Soft-delete a review.
+   * Permission: authors may delete their own reviews; admins may delete any.
    */
   deleteReview: function (reviewId) {
     try {
@@ -249,7 +235,6 @@ const ReviewService = {
       String(r.restaurant_id) === String(restaurantId) && (r.enabled === true || r.enabled === 'TRUE')
     );
 
-    // [NEW] 리뷰 개수 업데이트
     const count = targetReviews.length;
     RestaurantService.updateReviewCount(restaurantId, count);
 

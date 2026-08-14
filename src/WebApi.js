@@ -149,6 +149,18 @@ function apiGetAllMenus() {
 }
 
 // ==========================================
+// Tutorial API
+// ==========================================
+
+function apiGetMyTutorials() {
+  return _executeApi('apiGetMyTutorials', () => TutorialService.getMyDismissed());
+}
+
+function apiDismissTutorial(feature) {
+  return _executeApi('apiDismissTutorial', () => TutorialService.dismiss(feature), feature);
+}
+
+// ==========================================
 // Hall of Fame API
 // ==========================================
 

@@ -16,7 +16,7 @@
 
       // --- Constants ---
       // App version (kept in sync with the version in the 기능명세서.md title)
-      const APP_VERSION = "v1.4.0";
+      const APP_VERSION = "v1.4.1";
       const GOOGLE_SHEET_URL =
         "https://docs.google.com/spreadsheets/d/1Zs610z6VE5AxeaJblNM8zRDu8fbGgn82F3nR7OId3ok/";
       const appElement = document.getElementById("app");
@@ -1068,6 +1068,13 @@
             .apiGetExcludedEmails();
         });
 
+        const tutorialPromise = new Promise((resolve) => {
+          google.script.run
+            .withSuccessHandler((res) => resolve(res && res.success ? res.data : []))
+            .withFailureHandler(() => resolve([]))
+            .apiGetMyTutorials();
+        });
+
         Promise.all([
           userPromise,
           mainDataPromise,
@@ -1075,8 +1082,12 @@
           likesPromise,
           menuDataPromise,
           allUsersPromise,
-          excludedEmailsPromise
-        ]).then(([u, m, r, l, mu, au, ex]) => {
+          excludedEmailsPromise,
+          tutorialPromise
+        ]).then(([u, m, r, l, mu, au, ex, dismissedTutorials]) => {
+          if (currentUser.value.email && !dismissedTutorials.includes(TUTORIAL_KEY)) {
+            tutorialVisible.value = true;
+          }
           // Must run after BOTH user and review responses; computing it inside the
           // review handler races with apiGetCurrentUser and can produce an empty set
           const userEmail = currentUser.value.email;
@@ -2158,6 +2169,18 @@
         );
       };
 
+      // --- New-feature tutorial ---
+      const TUTORIAL_KEY = "halloffame_v140";
+      const tutorialVisible = ref(false);
+      const tutorialDontShowAgain = ref(false);
+
+      const closeTutorial = () => {
+        tutorialVisible.value = false;
+        if (tutorialDontShowAgain.value) {
+          google.script.run.withFailureHandler(() => {}).apiDismissTutorial(TUTORIAL_KEY);
+        }
+      };
+
       // Silent background refetch to reconcile restaurant stats and counts not patchable locally
       const refreshHallOfFame = () => {
         google.script.run
@@ -2610,6 +2633,9 @@
         hofPodium,
         hofCategoryBoards,
         hofReviewerBoards,
+        tutorialVisible,
+        tutorialDontShowAgain,
+        closeTutorial,
         addCustomUser,
         removeCustomUser,
         isUserSelected,

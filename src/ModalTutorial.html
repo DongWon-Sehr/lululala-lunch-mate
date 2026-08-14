@@ -1,0 +1,91 @@
+<!-- Full-page takeover: covers the entire app including the GNB.
+     Only the "다시 보지 않기" checkbox and the confirm button are interactive. -->
+<div v-if="tutorialVisible" class="fixed inset-0 z-[10000] bg-gray-50 overflow-y-auto animate-fade-in">
+
+  <!-- Mock GNB: mirrors the real header markup, visual guide only, clicks disabled -->
+  <div class="bg-white shadow-sm select-none pointer-events-none">
+    <div class="max-w-7xl mx-auto px-4 h-16 flex items-center">
+      <div class="flex items-center mr-6 text-xl font-bold text-orange-600 gap-2">
+        <i class="ph ph-bowl-food text-5xl shrink-0"></i>
+        <span class="flex flex-col text-left leading-tight">
+          <span class="flex items-baseline gap-3">
+            <span class="text-xs text-gray-600 font-normal">룰루랄라</span>
+            <span class="text-[11px] text-gray-400 font-normal tracking-wide">{{ APP_VERSION }}</span>
+          </span>
+          <span class="font-bold text-xl -mt-1">뉴슐랭 가이드</span>
+        </span>
+      </div>
+      <div class="hidden md:flex space-x-2 items-center">
+        <span class="px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 whitespace-nowrap">식당 리스트</span>
+        <span class="px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 whitespace-nowrap">오늘 뭐먹지?</span>
+        <span class="px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 whitespace-nowrap">누구랑 먹지?</span>
+        <span class="relative px-4 py-2 rounded-lg text-sm font-extrabold bg-orange-100 text-orange-600 ring-2 ring-orange-400 ring-offset-2 animate-pulse whitespace-nowrap shadow-lg shadow-orange-100">
+          🏆 명예의 전당
+          <!-- Callout anchored to this tab so it stays aligned at any viewport width -->
+          <!-- bounce lives on the inner span: its keyframes overwrite transform and would cancel translateX -->
+          <span class="absolute top-full left-1/2 transform -translate-x-1/2 mt-3 z-10">
+            <span class="flex flex-col items-center text-orange-500 animate-bounce whitespace-nowrap">
+              <i class="ph-bold ph-arrow-up text-xl"></i>
+              <span class="text-xs font-bold">여기에 새 메뉴가 생겼어요!</span>
+            </span>
+          </span>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- One-page summary -->
+  <div class="max-w-3xl mx-auto px-6 pt-20 pb-36 select-none">
+    <div class="text-center mb-8">
+      <div class="text-6xl mb-3">🏆</div>
+      <h2 class="text-2xl font-extrabold text-gray-800">새로운 기능: 명예의 전당</h2>
+      <p class="text-sm text-gray-500 mt-2">
+        식당 등록 · 메뉴 추가 · 리뷰 · 찜 활동을 집계해 <span class="font-bold text-gray-700">기여도 랭킹</span>을 보여드려요. <span class="text-xs text-gray-400">(v1.4.1)</span>
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div class="text-2xl mb-2">👑</div>
+        <div class="font-bold text-gray-800 text-sm mb-1">기여도 Top 3 포디움</div>
+        <p class="text-xs text-gray-500 leading-relaxed">가장 많이 기여한 세 분을 시상대에 모셔요. 프로필과 티어, 세부 활동 카운트까지 보여드려요.</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div class="text-2xl mb-2">🥇</div>
+        <div class="font-bold text-gray-800 text-sm mb-1">부문별 랭킹</div>
+        <p class="text-xs text-gray-500 leading-relaxed">식당왕 · 메뉴왕 · 리뷰왕 · 찜꾸러기 — 부문별 Top 3를 소개해요.</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div class="text-2xl mb-2">🧐 👼🏻</div>
+        <div class="font-bold text-gray-800 text-sm mb-1">리뷰 성향</div>
+        <p class="text-xs text-gray-500 leading-relaxed">평균 별점이 짠 <span class="font-bold">엄격 비평가</span>와 후한 <span class="font-bold">천사 리뷰어</span>를 뽑아요. (리뷰 3개 이상)</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div class="text-2xl mb-2">⭐</div>
+        <div class="font-bold text-gray-800 text-sm mb-1">식당 통계</div>
+        <p class="text-xs text-gray-500 leading-relaxed">모두의 원픽 · 논란의 맛집 · 요즘 핫플 · 추억의 맛집 — 리뷰 수를 반영한 가중 평점으로 공정하게 집계해요.</p>
+      </div>
+    </div>
+
+    <div class="mt-6 bg-amber-50 border border-amber-100 rounded-2xl px-5 py-4 text-xs text-amber-800 leading-relaxed">
+      <div class="font-bold mb-1 flex items-center gap-1"><i class="ph-fill ph-info"></i> 집계 안내</div>
+      <span class="font-bold">리뷰와 찜</span>은 지금까지의 기록이 모두 반영되어 있어요.
+      <span class="font-bold">식당 추가와 메뉴 정보</span>는 이전 기록에 등록자 정보가 없어,
+      <span class="font-bold">지금부터 등록하는 것부터</span> 기여도에 반영됩니다.
+    </div>
+  </div>
+
+  <!-- Fixed action bar: the only interactive area -->
+  <div class="fixed bottom-0 inset-x-0 bg-white border-t border-gray-100 shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
+    <div class="max-w-3xl mx-auto px-6 py-4 flex items-center justify-center gap-6">
+      <label class="flex items-center gap-2 text-sm text-gray-500 cursor-pointer select-none">
+        <input type="checkbox" v-model="tutorialDontShowAgain" class="accent-orange-500 w-4 h-4" />
+        다시 보지 않기
+      </label>
+      <button @click="closeTutorial"
+        class="bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold px-8 py-2.5 rounded-xl transition-all active:scale-95 shadow-lg shadow-orange-100">
+        확인
+      </button>
+    </div>
+  </div>
+</div>

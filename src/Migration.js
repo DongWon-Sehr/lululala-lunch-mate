@@ -32,6 +32,9 @@ const Migration = {
       ],
       'excluded': [
         'id', 'email', 'created_at'
+      ],
+      'tutorial': [
+        'id', 'email', 'feature', 'dismissed', 'created_at', 'updated_at'
       ]
     };
 

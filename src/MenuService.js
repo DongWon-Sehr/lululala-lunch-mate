@@ -79,6 +79,8 @@ const MenuService = {
 
       const validNewMenus = (menuForms || []).filter(m => m.name && m.name.trim() !== '');
       const now = new Date();
+      const createdByIdx = headers.indexOf('created_by');
+      const currentUserEmail = Session.getActiveUser().getEmail() || 'SYSTEM';
 
       // A. Overwrite existing rows
       const reuseCount = Math.min(targetRowIndices.length, validNewMenus.length);
@@ -130,6 +132,8 @@ const MenuService = {
           if (headers.indexOf('created_at') !== -1) rowData[headers.indexOf('created_at')] = now;
           if (updatedIdx !== -1) rowData[updatedIdx] = now;
           if (isSigIdx !== -1) rowData[isSigIdx] = (menu.is_signature === true);
+          // Write-once audit: overwritten rows keep their original created_by; only new rows get one
+          if (createdByIdx !== -1) rowData[createdByIdx] = currentUserEmail;
 
           rowsToAdd.push(rowData);
         }

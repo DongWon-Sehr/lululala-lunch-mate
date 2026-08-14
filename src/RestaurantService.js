@@ -172,6 +172,8 @@ const RestaurantService = {
       defaultRow['enabled'] = true;
       defaultRow['created_at'] = now;
       defaultRow['updated_at'] = now;
+      // Audit is server-authoritative; never trust a client-sent value
+      defaultRow['created_by'] = Session.getActiveUser().getEmail() || 'SYSTEM';
 
       const newRow = headers.map(header => defaultRow[header] !== undefined ? defaultRow[header] : '');
       sheet.appendRow(newRow);

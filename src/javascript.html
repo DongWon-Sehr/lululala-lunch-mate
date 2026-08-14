@@ -16,7 +16,7 @@
 
       // --- Constants ---
       // App version (kept in sync with the version in the 기능명세서.md title)
-      const APP_VERSION = "v1.3.1";
+      const APP_VERSION = "v1.4.0";
       const GOOGLE_SHEET_URL =
         "https://docs.google.com/spreadsheets/d/1Zs610z6VE5AxeaJblNM8zRDu8fbGgn82F3nR7OId3ok/";
       const appElement = document.getElementById("app");
@@ -1155,6 +1155,7 @@
           userLikes.value.add(rest.id);
           rest.like_count = (rest.like_count || 0) + 1;
         }
+        bumpMyHofStats({ like: wasLiked ? -1 : 1 });
 
         google.script.run
           .withSuccessHandler((res) => {
@@ -1166,6 +1167,7 @@
                 userLikes.value.delete(rest.id);
                 rest.like_count--;
               }
+              bumpMyHofStats({ like: wasLiked ? 1 : -1 });
               showAlert("찜하기 실패", "처리 실패");
             }
           })
@@ -1495,9 +1497,17 @@
 
         console.log("DEBUG PAYLOAD [Full]:", payload);
 
+        // Optimistic HoF update: new restaurants count fully; edits only add newly inserted menu rows
+        const prevMenuCount = isEdit ? (menuMap.value[String(payload.id)] || []).length : 0;
+        const hofDelta = isEdit
+          ? { menu: Math.max(0, cleanMenus.length - prevMenuCount) }
+          : { restaurant: 1, menu: cleanMenus.length };
+        bumpMyHofStats(hofDelta);
+
         google.script.run
           .withSuccessHandler((res) => {
             if (res.success && res.data) {
+              refreshHallOfFame();
               const updatedMenus = cleanMenus.map((m) => ({
                 restaurant_id: String(res.data.id),
                 name: m.name,
@@ -1523,6 +1533,7 @@
                 updateCurrentModalReviews(selectedRestaurant.value.id);
               }
             } else {
+              bumpMyHofStats({ restaurant: -(hofDelta.restaurant || 0), menu: -(hofDelta.menu || 0) });
               isSubmitting.value = false;
               showAlert("식당 정보 저장에 실패했습니다.", "처리 실패");
             }
@@ -1552,6 +1563,9 @@
                 restaurants.value.splice(index, 1);
               }
               delete menuMap.value[idToDelete];
+
+              // Creator is unknown client-side; let the server recompute
+              refreshHallOfFame();
 
               isSubmitting.value = false;
               closeModal();
@@ -1599,9 +1613,13 @@
         }
         isSubmitting.value = true;
 
+        bumpMyHofStats({ review: 1, rateDelta: reviewForm.value.rate });
+        const submittedRate = reviewForm.value.rate;
+
         google.script.run
           .withSuccessHandler((res) => {
             if (res.success && res.data) {
+              refreshHallOfFame();
               const newReviewData = {
                 id: res.data.id,
                 restaurant_id: selectedRestaurant.value.id,
@@ -1630,6 +1648,7 @@
               }, 2000);
               isSubmitting.value = false;
             } else {
+              bumpMyHofStats({ review: -1, rateDelta: -submittedRate });
               isSubmitting.value = false;
               showAlert("리뷰 등록에 실패했습니다.", "처리 실패");
             }
@@ -1642,9 +1661,18 @@
         if (!confirmed) return;
         isSubmitting.value = true;
 
+        // Admins can delete others' reviews; only patch HoF when it's my own
+        const targetReview = reviews.value.find((r) => r.id === reviewId);
+        const isMyReview = targetReview &&
+          String(targetReview.user_email) === String(currentUser.value.email);
+        if (isMyReview) {
+          bumpMyHofStats({ review: -1, rateDelta: -(Number(targetReview.rate) || 0) });
+        }
+
         google.script.run
           .withSuccessHandler((res) => {
             if (res.success) {
+              refreshHallOfFame();
               updateReviewAndRestaurantState(
                 selectedRestaurant.value.id,
                 null,
@@ -1653,6 +1681,9 @@
 
               isSubmitting.value = false;
             } else {
+              if (isMyReview) {
+                bumpMyHofStats({ review: 1, rateDelta: Number(targetReview.rate) || 0 });
+              }
               isSubmitting.value = false;
               showAlert("리뷰 삭제에 실패했습니다.", "처리 실패");
             }
@@ -1679,9 +1710,14 @@
         }
         isReviewSubmitting.value = true;
 
+        const prevRate = Number(reviews.value.find((r) => r.id === editForm.value.id)?.rate) || 0;
+        const editRateDelta = (Number(editForm.value.rate) || 0) - prevRate;
+        bumpMyHofStats({ rateDelta: editRateDelta });
+
         google.script.run
           .withSuccessHandler((res) => {
             if (res.success) {
+              refreshHallOfFame();
               const editedReview = {
                 id: editForm.value.id,
                 restaurant_id: selectedRestaurant.value.id,
@@ -1709,6 +1745,7 @@
               }, 2000);
               isReviewSubmitting.value = false;
             } else {
+              bumpMyHofStats({ rateDelta: -editRateDelta });
               isReviewSubmitting.value = false;
               showAlert("리뷰 수정에 실패했습니다.", "처리 실패");
             }
@@ -2020,6 +2057,118 @@
         }
       };
 
+      // --- Hall of Fame ---
+      const hallOfFame = ref(null);
+      const isHofLoading = ref(false);
+
+      const loadHallOfFame = () => {
+        if (hallOfFame.value || isHofLoading.value) return;
+        isHofLoading.value = true;
+        // Prefetched at app entry; failures stay silent unless the tab is visible (tab entry retries)
+        const onFail = (message) => {
+          isHofLoading.value = false;
+          if (currentTab.value === "halloffame") {
+            showAlert("명예의 전당 데이터를 불러오지 못했습니다.", "오류");
+          } else {
+            console.warn("apiGetHallOfFame failed:", message);
+          }
+        };
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (res && res.success) {
+              isHofLoading.value = false;
+              hallOfFame.value = res.data;
+            } else {
+              onFail(res?.message);
+            }
+          })
+          .withFailureHandler((err) => onFail(err))
+          .apiGetHallOfFame();
+      };
+
+      const getTierByReviewCount = (count) =>
+        RANK_TIERS.slice().reverse().find((t) => count >= t.min) || RANK_TIERS[0];
+
+      const hofUsers = computed(() => {
+        if (!hallOfFame.value) return [];
+        const userMap = {};
+        allUsers.value.forEach(u => { userMap[String(u.email).toLowerCase()] = u; });
+        const myEmail = currentUser.value.email ? String(currentUser.value.email).toLowerCase() : '';
+        // Only active GWS members appear; guests and departed users are excluded entirely
+        return hallOfFame.value.users
+          .filter(u => userMap[u.email] && !userMap[u.email].isGuest)
+          .map(u => {
+            const info = userMap[u.email];
+            return {
+              ...u,
+              name: info.name,
+              department: info.department,
+              thumbnailPhotoUrl: info.thumbnailPhotoUrl,
+              isMe: myEmail !== '' && u.email === myEmail,
+              tier: getTierByReviewCount(u.reviewCount),
+            };
+          });
+      });
+
+      const hofPodium = computed(() => hofUsers.value.slice(0, 3));
+
+      const hofTopBy = (key) =>
+        hofUsers.value
+          .filter(u => u[key] > 0)
+          .sort((a, b) => (b[key] - a[key]) || (b.score - a.score))
+          .slice(0, 3);
+
+      const hofCategoryBoards = computed(() => [
+        { title: '식당왕', icon: 'ph-fill ph-storefront', color: 'text-orange-500', unit: '곳', key: 'restaurantCount', items: hofTopBy('restaurantCount') },
+        { title: '메뉴왕', icon: 'ph-fill ph-fork-knife', color: 'text-emerald-500', unit: '개', key: 'menuCount', items: hofTopBy('menuCount') },
+        { title: '리뷰왕', icon: 'ph-fill ph-chat-circle-text', color: 'text-blue-500', unit: '개', key: 'reviewCount', items: hofTopBy('reviewCount') },
+        { title: '찜꾸러기', icon: 'ph-fill ph-heart', color: 'text-rose-500', unit: '개', key: 'likeCount', items: hofTopBy('likeCount') },
+      ]);
+
+      const hofReviewerBoards = computed(() => {
+        const eligible = hofUsers.value.filter(u => u.reviewCount >= 3 && u.avgRateGiven !== null);
+        const harsh = [...eligible].sort((a, b) => (a.avgRateGiven - b.avgRateGiven) || (b.reviewCount - a.reviewCount)).slice(0, 3);
+        const generous = [...eligible].sort((a, b) => (b.avgRateGiven - a.avgRateGiven) || (b.reviewCount - a.reviewCount)).slice(0, 3);
+        return [
+          { title: '엄격 비평가', desc: '남긴 리뷰의 평균 별점이 가장 낮아요', emoji: '🧐', items: harsh },
+          { title: '천사 리뷰어', desc: '남긴 리뷰의 평균 별점이 가장 높아요', emoji: '👼🏻', items: generous },
+        ];
+      });
+
+      // Optimistic patch of my own contribution counters; exact stats reconcile via refreshHallOfFame
+      const bumpMyHofStats = (delta) => {
+        if (!hallOfFame.value || !currentUser.value.email) return;
+        const myEmail = String(currentUser.value.email).toLowerCase();
+        let u = hallOfFame.value.users.find(x => x.email === myEmail);
+        if (!u) {
+          u = { email: myEmail, restaurantCount: 0, menuCount: 0, reviewCount: 0, likeCount: 0, avgRateGiven: null, score: 0 };
+          hallOfFame.value.users.push(u);
+        }
+        const ratingSum = (u.avgRateGiven || 0) * u.reviewCount + (delta.rateDelta || 0);
+        u.restaurantCount = Math.max(0, u.restaurantCount + (delta.restaurant || 0));
+        u.menuCount = Math.max(0, u.menuCount + (delta.menu || 0));
+        u.reviewCount = Math.max(0, u.reviewCount + (delta.review || 0));
+        u.likeCount = Math.max(0, u.likeCount + (delta.like || 0));
+        u.avgRateGiven = u.reviewCount > 0 ? ratingSum / u.reviewCount : null;
+        u.score = u.restaurantCount * 10 + u.reviewCount * 5 + u.menuCount * 2 + u.likeCount * 0.5;
+        hallOfFame.value.users.sort((a, b) =>
+          (b.score - a.score) ||
+          (b.restaurantCount - a.restaurantCount) ||
+          (b.reviewCount - a.reviewCount) ||
+          a.email.localeCompare(b.email)
+        );
+      };
+
+      // Silent background refetch to reconcile restaurant stats and counts not patchable locally
+      const refreshHallOfFame = () => {
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (res && res.success) hallOfFame.value = res.data;
+          })
+          .withFailureHandler(() => {})
+          .apiGetHallOfFame();
+      };
+
       const addCustomUser = (deptName, e) => {
         if (isComposing.value) return; // Prevent duplicate entry while IME composition is in progress
         const val = e.target.value.trim();
@@ -2235,9 +2384,11 @@
 
       onMounted(() => {
         loadData();
+        loadHallOfFame();
         window.addEventListener("resize", updateWidth);
         watch(currentTab, (newVal) => {
           if (newVal === "wheel") nextTick(() => drawWheel());
+          if (newVal === "halloffame") loadHallOfFame();
         });
 
         window.addEventListener("keydown", (e) => {
@@ -2455,6 +2606,11 @@
         checkStateIcon,
         allSelectState,
         toggleAllUsers,
+        hallOfFame,
+        isHofLoading,
+        hofPodium,
+        hofCategoryBoards,
+        hofReviewerBoards,
         addCustomUser,
         removeCustomUser,
         isUserSelected,

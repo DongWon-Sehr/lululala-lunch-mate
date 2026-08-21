@@ -115,6 +115,47 @@ function apiGetAllUsers() {
   return _executeApi('apiGetAllUsers', () => UserService.getAllUsers());
 }
 
+// Directory photo by email: anonymous URL fetches of private Google photos only
+// return the default silhouette, but Photos.get returns the real bytes
+function apiGetUserPhotoDataUri(email) {
+  return _executeApi('apiGetUserPhotoDataUri', () => {
+    const photo = AdminDirectory.Users.Photos.get(email);
+    if (!photo || !photo.photoData) {
+      return Util.response(false, null, 'No photo');
+    }
+    // The advanced service may deliver photoData as a byte array; the raw API
+    // form is web-safe base64 with extra substitutions (+ -> -, / -> _, = -> * or .)
+    let bytes;
+    if (typeof photo.photoData === 'string') {
+      const normalized = photo.photoData
+        .replace(/-/g, '+')
+        .replace(/_/g, '/')
+        .replace(/[*.]/g, '=');
+      bytes = Utilities.base64Decode(normalized);
+    } else {
+      bytes = photo.photoData;
+    }
+    const mime = photo.mimeType || 'image/jpeg';
+    return Util.response(true, 'data:' + mime + ';base64,' + Utilities.base64Encode(bytes));
+  }, { email });
+}
+
+// Server-side fetch for profile photos the browser cannot load with CORS
+// (used by the client when embedding photos into the capture image)
+function apiGetImageDataUri(url) {
+  return _executeApi('apiGetImageDataUri', () => {
+    if (!/^https:\/\/([A-Za-z0-9-]+\.)*(googleusercontent\.com|lh[0-9]+\.google\.com)\//.test(url)) {
+      return Util.response(false, null, 'Host not allowed');
+    }
+    const blob = UrlFetchApp.fetch(url).getBlob();
+    if (blob.getContentType().indexOf('image/') !== 0) {
+      return Util.response(false, null, 'Not an image');
+    }
+    const dataUri = 'data:' + blob.getContentType() + ';base64,' + Utilities.base64Encode(blob.getBytes());
+    return Util.response(true, dataUri);
+  }, { url });
+}
+
 // ==========================================
 // Restaurant API
 // ==========================================

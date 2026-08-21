@@ -1,4 +1,4 @@
-<nav class="bg-white shadow-sm z-[9998] sticky top-0">
+<nav id="gnbHeader" class="bg-white shadow-sm z-[9998] sticky top-0">
   <div class="max-w-7xl mx-auto px-4 py-2 md:py-0">
     <div
       class="flex flex-wrap md:flex-nowrap md:h-16 items-center gap-y-2 md:gap-0"
@@ -73,7 +73,7 @@
               v-else-if="currentUser?.profileUrl"
               :src="currentUser.profileUrl"
               class="w-[102%] h-[102%] object-cover scale-[1.02]"
-              alt="profile"
+              :alt="userInitial"
             />
             <span v-else> {{ userInitial }} </span>
           </div>

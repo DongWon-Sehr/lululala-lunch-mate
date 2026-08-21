@@ -16,7 +16,7 @@
 
       // --- Constants ---
       // App version (kept in sync with the version in the 기능명세서.md title)
-      const APP_VERSION = "v1.4.1";
+      const APP_VERSION = "v1.4.2";
       const GOOGLE_SHEET_URL =
         "https://docs.google.com/spreadsheets/d/1Zs610z6VE5AxeaJblNM8zRDu8fbGgn82F3nR7OId3ok/";
       const appElement = document.getElementById("app");
@@ -38,6 +38,87 @@
       const lunchMateTeams = ref([]); // Final team assignment (shown in full after the animation completes)
       const displayTeams = ref([]); // Teams rendered on screen (filled one by one during the animation)
       const isTeamAnimating = ref(false);
+      const isCapturingResult = ref(false);
+      const capturePhotoCache = new Map(); // photo src -> data URI, or null when CORS-blocked
+
+      const toast = ref({ visible: false, message: "" });
+      let toastTimer = null;
+      const showToast = (message, duration = 1600) => {
+        toast.value = { visible: true, message };
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => (toast.value.visible = false), duration);
+      };
+
+      const findPhotoEmail = (src) => {
+        if (currentUser.value && currentUser.value.profileUrl === src)
+          return currentUser.value.email;
+        const hit = allUsers.value.find((u) => u.thumbnailPhotoUrl === src);
+        return hit ? hit.email : null;
+      };
+
+      // Server-side fetch bypasses CORS for photos the browser cannot embed
+      // itself: directory Photos.get by email first (real bytes even for private
+      // photos), then a plain URL fetch
+      const fetchPhotoViaServer = (src) =>
+        new Promise((resolve) => {
+          const fetchByUrl = () => {
+            google.script.run
+              .withSuccessHandler((res) =>
+                resolve(res && res.success ? res.data : null)
+              )
+              .withFailureHandler(() => resolve(null))
+              .apiGetImageDataUri(src);
+          };
+          const email = findPhotoEmail(src);
+          if (!email) return fetchByUrl();
+          google.script.run
+            .withSuccessHandler((res) => {
+              if (res && res.success) resolve(res.data);
+              else fetchByUrl();
+            })
+            .withFailureHandler(fetchByUrl)
+            .apiGetUserPhotoDataUri(email);
+        });
+
+      // Fetch each photo once and inline it as a data URI so capture never hits
+      // the network: CORS probe first, then the server proxy; photos that fail
+      // both cache null and are drawn with the initial-letter fallback.
+      const warmCapturePhotoCache = (srcs) =>
+        Promise.all(
+          [...new Set(srcs)]
+            .filter((src) => src && !capturePhotoCache.has(src))
+            .map(
+              (src) =>
+                new Promise((resolve) => {
+                  let settled = false;
+                  const done = async (probe) => {
+                    if (settled) return;
+                    settled = true;
+                    let dataUrl = null;
+                    if (probe) {
+                      try {
+                        const c = document.createElement("canvas");
+                        c.width = probe.naturalWidth;
+                        c.height = probe.naturalHeight;
+                        c.getContext("2d").drawImage(probe, 0, 0);
+                        dataUrl = c.toDataURL("image/png");
+                      } catch (e) {
+                        dataUrl = null;
+                      }
+                    }
+                    if (!dataUrl) dataUrl = await fetchPhotoViaServer(src);
+                    capturePhotoCache.set(src, dataUrl);
+                    resolve();
+                  };
+                  const probe = new Image();
+                  probe.crossOrigin = "anonymous";
+                  probe.onload = () => done(probe);
+                  probe.onerror = () => done(null);
+                  setTimeout(() => done(null), 3000);
+                  probe.src = src;
+                })
+            )
+        );
       const currentAnimatingUser = ref(null);
       const isLoading = ref(true);
       const loadingText = ref(
@@ -2319,7 +2400,24 @@
 
         // --- Animation ---
         isTeamAnimating.value = true;
+        teamResultBlobPromise = null;
         lunchMateTeams.value = teams;
+
+        // Prewarm the capture photo cache and snapdom's font/resource cache
+        // while the animation plays, so the first image copy is fast
+        warmCapturePhotoCache(
+          teams
+            .flat()
+            .map((u) => u.thumbnailPhotoUrl)
+            .concat(
+              Array.from(document.querySelectorAll("#gnbHeader img")).map(
+                (img) => img.src
+              )
+            )
+        );
+        if (window.snapdom && snapdom.preCache) {
+          snapdom.preCache(document.body, { embedFonts: true }).catch(() => {});
+        }
         
         displayTeams.value = teams.map(() => []);
 
@@ -2351,24 +2449,135 @@
         }
 
         isTeamAnimating.value = false;
+        nextTick(() => precomputeTeamResultBlob());
       };
 
-      const copyTeamResult = () => {
-        if (lunchMateTeams.value.length === 0) return;
+      const buildTeamResultBlob = async () => {
+        const target = document.getElementById("lunchMateResult");
+        if (!target) return null;
 
-        let text = "🍴 [누구랑 먹지?] 조 편성 결과\n\n";
-        lunchMateTeams.value.forEach((team, idx) => {
-          text += `📍 ${idx + 1}조: ${team.map((u) => u.name).join(", ")}\n`;
-        });
+        const headerEl = document.getElementById("gnbHeader");
+        const captureEls = [headerEl, target].filter(Boolean);
+        const capturePhotoRestores = [];
 
-        const tempInput = document.createElement("textarea");
-        tempInput.value = text;
-        document.body.appendChild(tempInput);
-        tempInput.select();
-        document.execCommand("copy");
-        document.body.removeChild(tempInput);
+        let tPhase = performance.now();
+        const logPhase = (name) => {
+          console.log(`[capture] ${name}: ${Math.round(performance.now() - tPhase)}ms`);
+          tPhase = performance.now();
+        };
 
-        showAlert("편성 결과가 클립보드에 복사되었습니다.", "복사 완료");
+        try {
+          // Covers cache misses; normally already warmed during the team animation
+          await warmCapturePhotoCache(
+            captureEls.flatMap((el) =>
+              Array.from(el.querySelectorAll("img")).map((img) => img.src)
+            )
+          );
+          logPhase("photo-cache");
+
+          // Swap photos in place before the snapshot: cached ones become data URIs,
+          // blocked ones become the initial-letter fallback (restored afterwards)
+          captureEls.forEach((el) =>
+            el.querySelectorAll("img").forEach((img) => {
+              const dataUrl = capturePhotoCache.get(img.src);
+              if (dataUrl) {
+                const originalSrc = img.src;
+                img.src = dataUrl;
+                capturePhotoRestores.push(() => (img.src = originalSrc));
+              } else {
+                const fallback = document.createElement("div");
+                fallback.className =
+                  "w-full h-full flex items-center justify-center text-sm font-bold text-gray-400 bg-gray-50";
+                fallback.textContent = (img.alt || "?").charAt(0);
+                img.replaceWith(fallback);
+                capturePhotoRestores.push(() => fallback.replaceWith(img));
+              }
+            })
+          );
+
+          const canvases = await Promise.all(
+            captureEls.map(async (el) => {
+              const snap = await snapdom(el, {
+                backgroundColor: "#f9fafb",
+                scale: 2,
+                embedFonts: true,
+                iconFonts: [/phosphor/i],
+              });
+              return snap.toCanvas();
+            })
+          );
+          logPhase("snapshots");
+
+          // Stack the GNB above the result on one canvas, centered on a common width
+          const width = Math.max(...canvases.map((c) => c.width));
+          const composite = document.createElement("canvas");
+          composite.width = width;
+          composite.height = canvases.reduce((sum, c) => sum + c.height, 0);
+          const ctx = composite.getContext("2d");
+          ctx.fillStyle = "#f9fafb";
+          ctx.fillRect(0, 0, composite.width, composite.height);
+          let offsetY = 0;
+          canvases.forEach((c) => {
+            ctx.drawImage(c, Math.round((width - c.width) / 2), offsetY);
+            offsetY += c.height;
+          });
+
+          const blob = await new Promise((resolve) =>
+            composite.toBlob(resolve, "image/png")
+          );
+          logPhase("png-encode");
+          return blob;
+        } finally {
+          capturePhotoRestores.forEach((restore) => restore());
+        }
+      };
+
+      // Run the capture pipeline ahead of the click (invalidated by re-generation
+      // and layout width changes) so copying only has to write the prepared blob
+      let teamResultBlobPromise = null;
+      let teamResultBlobKey = null;
+      const precomputeTeamResultBlob = () => {
+        teamResultBlobKey = String(window.innerWidth);
+        teamResultBlobPromise = buildTeamResultBlob().catch(() => null);
+      };
+
+      const copyTeamResultImage = async () => {
+        if (lunchMateTeams.value.length === 0 || isCapturingResult.value) return;
+
+        isCapturingResult.value = true;
+        try {
+          let blob = null;
+          if (
+            teamResultBlobPromise &&
+            teamResultBlobKey === String(window.innerWidth)
+          ) {
+            blob = await teamResultBlobPromise;
+          }
+          if (!blob) blob = await buildTeamResultBlob();
+          if (!blob) throw new Error("Failed to render capture image.");
+
+          try {
+            await navigator.clipboard.write([
+              new ClipboardItem({ "image/png": blob }),
+            ]);
+            showToast("결과 이미지 클립보드 복사 완료");
+          } catch (clipboardError) {
+            // Clipboard image write can be blocked in sandboxed iframes; fall back to a file download
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `lunch-mate-${new Date().toISOString().slice(0, 10)}.png`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+            showAlert(
+              "클립보드 복사가 차단되어 이미지 파일로 다운로드했습니다.",
+              "이미지 다운로드"
+            );
+          }
+        } catch (e) {
+          showAlert("이미지 캡처에 실패했습니다. 잠시 후 다시 시도해주세요.", "오류");
+        } finally {
+          isCapturingResult.value = false;
+        }
       };
 
       const handleMenuPriceInput = (menuItem, newFormattedValue) => {
@@ -2640,7 +2849,9 @@
         removeCustomUser,
         isUserSelected,
         generateTeams,
-        copyTeamResult,
+        copyTeamResultImage,
+        isCapturingResult,
+        toast,
         adminEmailsList,
         newAdminEmail,
         adminGuests,

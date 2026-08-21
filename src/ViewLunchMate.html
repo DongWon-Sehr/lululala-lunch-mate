@@ -171,8 +171,10 @@
   <div v-if="displayTeams.length > 0 || isTeamAnimating" id="lunchMateResult" class="space-y-4 animate-fade-in-up pb-10">
     <div class="flex justify-between items-center px-2">
       <h3 class="font-bold text-gray-800">편성 결과 <span class="text-sm font-normal text-gray-500 ml-2">({{ displayTeams.length }}개 조)</span></h3>
-      <button @click="copyTeamResult" :disabled="isTeamAnimating" class="text-sm text-blue-600 font-bold flex items-center gap-1 hover:underline disabled:opacity-50 disabled:cursor-not-allowed">
-        <i class="ph ph-copy"></i> 결과 복사하기
+      <button @click="copyTeamResultImage" :disabled="isTeamAnimating" data-capture="exclude"
+        class="text-sm text-blue-600 font-bold flex items-center gap-1 hover:underline disabled:opacity-50 disabled:cursor-not-allowed">
+        <i class="text-base leading-none ph ph-copy"></i>
+        <span class="leading-none">결과 이미지 복사</span>
       </button>
     </div>
     
@@ -194,7 +196,7 @@
                  class="group">
               <div class="w-10 h-10 rounded-full bg-gray-100 overflow-hidden shrink-0 border border-gray-100 shadow-sm relative group-hover:scale-110 transition-transform">
                 <template v-if="!user.isCustom">
-                  <img v-if="user.thumbnailPhotoUrl" :src="user.thumbnailPhotoUrl" class="w-full h-full object-cover" />
+                  <img v-if="user.thumbnailPhotoUrl" :src="user.thumbnailPhotoUrl" :alt="user.name" class="w-full h-full object-cover" />
                   <div v-else class="w-full h-full flex items-center justify-center text-sm font-bold text-gray-400 bg-gray-50">
                     {{ user.name.charAt(0) }}
                   </div>
